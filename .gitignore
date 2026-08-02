@@ -4,6 +4,10 @@ dist-types
 build
 coverage
 
+# Docs: properdocs output and the venv mise creates to run it
+site
+.venv
+
 # Yarn 4: keep the release and plugins committed, ignore the rest
 .yarn/*
 !.yarn/patches

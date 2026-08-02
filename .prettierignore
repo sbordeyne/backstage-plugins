@@ -2,3 +2,7 @@ dist
 dist-types
 coverage
 .vscode
+
+# Docs build output and the venv mise creates to run properdocs
+site
+.venv
