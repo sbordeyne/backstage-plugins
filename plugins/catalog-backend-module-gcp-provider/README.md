@@ -17,8 +17,12 @@ service account key file, or rely on the ambient credentials of the environment.
 ## Configuration
 
 Each provider is enabled by the presence of its config key under `catalog.providers.gcp`. Every
-provider takes a `projects` list and a `schedule` block, and accepts the optional `owner` and
-`region` described below.
+provider takes a `projects` list and a `schedule` block, and accepts the optional `enabled`, `owner`
+and `region` described below.
+
+`enabled` defaults to `true`, so a provider runs as soon as its block exists. Setting it to `false`
+stops that resource type from being ingested without deleting the configuration you would have to
+put back to turn it on again.
 
 ```yaml
 catalog:
@@ -60,6 +64,8 @@ catalog:
         projects: [my-project]
         schedule: { frequency: { hours: 1 }, timeout: { minutes: 10 } }
       clusters:
+        # Kept configured, but not ingested for now.
+        enabled: false
         projects: [my-project]
         schedule: { frequency: { hours: 1 }, timeout: { minutes: 10 } }
 ```

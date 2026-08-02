@@ -2,6 +2,13 @@ import { SchedulerServiceTaskScheduleDefinitionConfig } from '@backstage/backend
 
 /** Settings shared by every GCP entity provider. */
 interface GcpProviderCommonConfig {
+  /**
+   * Whether this provider runs at all. Defaults to `true`, so a provider is on as soon as its
+   * config block exists; set it to `false` to stop ingesting this resource type while keeping the
+   * block you would otherwise have to delete and restore.
+   */
+  enabled?: boolean;
+
   /** GCP projects to enumerate. */
   projects: string[];
 
