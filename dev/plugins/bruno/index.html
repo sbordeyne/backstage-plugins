@@ -510,6 +510,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#where-reports-come-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where reports come from
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-a-report-finds-its-entity" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -517,6 +528,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="How a report finds its entity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#github-artifacts-are-matched-by-artifact-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub artifacts are matched by artifact name
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -582,22 +610,44 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#storage-layout-and-ci" class="md-nav__link">
+  <a href="#sources" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Storage layout and CI
+        Sources
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Storage layout and CI">
+    <nav class="md-nav" aria-label="Sources">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#bucket-permissions" class="md-nav__link">
+  <a href="#gcs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Bucket permissions
+        GCS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        S3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#github-actions-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub Actions artifacts
       
     </span>
   </a>
@@ -606,6 +656,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-upload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI upload
+      
+    </span>
+  </a>
   
 </li>
       
@@ -901,6 +962,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#where-reports-come-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where reports come from
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-a-report-finds-its-entity" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -908,6 +980,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="How a report finds its entity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#github-artifacts-are-matched-by-artifact-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub artifacts are matched by artifact name
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -973,22 +1062,44 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#storage-layout-and-ci" class="md-nav__link">
+  <a href="#sources" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Storage layout and CI
+        Sources
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Storage layout and CI">
+    <nav class="md-nav" aria-label="Sources">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#bucket-permissions" class="md-nav__link">
+  <a href="#gcs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Bucket permissions
+        GCS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        S3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#github-actions-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub Actions artifacts
       
     </span>
   </a>
@@ -997,6 +1108,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-upload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI upload
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1051,76 +1173,135 @@ database on a schedule, and the frontend adds an entity tab with a pass/fail his
 per-request results.</p>
 <p>The backend never talks to CI. Its only inputs are the bucket and the catalog, which means a
 pipeline that fails to run leaves the last known report in place rather than blanking the tab.</p>
+<h2 id="where-reports-come-from">Where reports come from<a class="headerlink" href="#where-reports-come-from" title="Permanent link">&para;</a></h2>
+<p>Three sources ship with the plugin, one enabled at a time under <code>bruno.source</code>:</p>
+<table>
+<thead>
+<tr>
+<th><code>type</code></th>
+<th>Reads</th>
+<th>Credentials</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gcs</code></td>
+<td>Objects under a prefix in a GCS bucket</td>
+<td>Application Default Credentials</td>
+</tr>
+<tr>
+<td><code>s3</code></td>
+<td>Objects under a prefix in an S3 bucket</td>
+<td>The <code>aws</code> config block, or the AWS chain</td>
+</tr>
+<tr>
+<td><code>github</code></td>
+<td>GitHub Actions workflow artifacts</td>
+<td>The matching <code>integrations.github</code> entry</td>
+</tr>
+</tbody>
+</table>
+<p>None of them takes a credential of its own: each reuses the mechanism the rest of Backstage
+already uses for that cloud.</p>
 <h2 id="how-a-report-finds-its-entity">How a report finds its entity<a class="headerlink" href="#how-a-report-finds-its-entity" title="Permanent link">&para;</a></h2>
 <ol>
 <li>An entity carries the annotation <code>usebruno.com/report-path</code>, whose value is the <strong>report file
    name</strong> — for example <code>users.json</code>.</li>
-<li>The sync worker lists objects under <code>bruno.objectPrefix</code> in <code>bruno.bucket</code>.</li>
-<li>An object is claimed by an entity when the <strong>last path segment</strong> of the object name equals
-   that annotation value. <code>ui_tests/reports/bruno/2026-08-01T09:00:00Z/users.json</code> matches
-   <code>users.json</code>.</li>
+<li>The sync worker asks the configured source for what it holds.</li>
+<li>An artifact is claimed by an entity when the <strong>last <code>/</code> segment</strong> of its name equals that
+   annotation value. <code>ui_tests/reports/bruno/2026-08-01T09:00:00Z/unit/users.json</code> matches
+   <code>users.json</code>, and so does a GitHub artifact simply named <code>users.json</code>.</li>
 </ol>
-<p>Everything else about the object path is free — nest by date, by pipeline id, by branch, as you
-like. If two entities claim the same report name each stores its own copy, and a warning is
-logged.</p>
+<p>Which artifacts a source offers at all is the source's own business — a prefix and a suite
+directory for the object stores, a name prefix and a branch for GitHub. If two entities claim the
+same report name each stores its own copy, and a warning is logged.</p>
+<div class="admonition warning">
+<p class="admonition-title">Object stores filter on a <code>unit/</code> directory by default</p>
+<p><code>requiredPathSegment</code> defaults to <code>unit</code>, so a GCS or S3 object is only considered when it
+sits <strong>directly under a <code>unit/</code> segment</strong>: <code>.../run-42/unit/users.json</code> is read,
+<code>.../run-42/integration/users.json</code> is not, and neither is <code>.../unit/nested/users.json</code>.
+That default preserves the behaviour the plugin has always had. Set it to <code>false</code> if your
+layout has no suite directory.</p>
+</div>
+<h3 id="github-artifacts-are-matched-by-artifact-name">GitHub artifacts are matched by artifact name<a class="headerlink" href="#github-artifacts-are-matched-by-artifact-name" title="Permanent link">&para;</a></h3>
+<p>An artifact listing says nothing about what is inside the zip, and downloading every archive to
+find out would defeat the point of listing first. So the <strong>artifact name</strong> is what the annotation
+is matched against: an artifact named <code>users.json</code> is the report <code>users.json</code>.</p>
+<p>On download the archive is unwrapped: a single <code>.json</code> entry is taken as the report, and an
+archive holding several is resolved by the entry whose file name matches the artifact. An archive
+with several JSON files and no such entry is an error, not a guess.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># .github/workflows/ui-tests.yaml</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bru run --env ci --output users.json --format json</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/upload-artifact@v4</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">users.json</span><span class="w"> </span><span class="c1"># matched against usebruno.com/report-path</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">users.json</span>
+</code></pre></div>
+<p>Use <code>namePrefix</code> when a bare report name would collide with your other artifacts — it filters the
+listing and is stripped before matching, so <code>bruno-users.json</code> with <code>namePrefix: bruno-</code> claims
+<code>users.json</code>.</p>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
 <h3 id="backend">Backend<a class="headerlink" href="#backend" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>yarn<span class="w"> </span>--cwd<span class="w"> </span>packages/backend<span class="w"> </span>add<span class="w"> </span>@sbordeyne/backstage-plugin-bruno-backend
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>yarn<span class="w"> </span>--cwd<span class="w"> </span>packages/backend<span class="w"> </span>add<span class="w"> </span>@sbordeyne/backstage-plugin-bruno-backend
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// packages/backend/src/index.ts</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;@sbordeyne/backstage-plugin-bruno-backend&#39;</span><span class="p">));</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// packages/backend/src/index.ts</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;@sbordeyne/backstage-plugin-bruno-backend&#39;</span><span class="p">));</span>
 </code></pre></div>
 <p>The plugin runs its own migrations at startup against the database the backend provides, so
 there is nothing to migrate by hand.</p>
 <h3 id="frontend">Frontend<a class="headerlink" href="#frontend" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>yarn<span class="w"> </span>--cwd<span class="w"> </span>packages/app<span class="w"> </span>add<span class="w"> </span>@sbordeyne/backstage-plugin-bruno
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>yarn<span class="w"> </span>--cwd<span class="w"> </span>packages/app<span class="w"> </span>add<span class="w"> </span>@sbordeyne/backstage-plugin-bruno
 </code></pre></div>
 <p>Add the tab to the entity page. <code>isBrunoReportsAvailable</code> keeps it off entities that have no
 report, and it only ever returns true for <code>Component</code> and <code>System</code> kinds:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// packages/app/src/components/catalog/EntityPage.tsx</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">EntityBrunoContent</span><span class="p">,</span><span class="w"> </span><span class="nx">isBrunoReportsAvailable</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@sbordeyne/backstage-plugin-bruno&#39;</span><span class="p">;</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kd">const</span><span class="w"> </span><span class="nx">serviceEntityPage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="p">&lt;</span><span class="nt">EntityLayout</span><span class="p">&gt;</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">{</span><span class="cm">/* … */</span><span class="p">}</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="p">&lt;</span><span class="nt">EntityLayout</span><span class="p">.</span><span class="na">Route</span><span class="w"> </span><span class="na">path</span><span class="o">=</span><span class="s">&quot;/api-tests&quot;</span><span class="w"> </span><span class="na">title</span><span class="o">=</span><span class="s">&quot;API tests&quot;</span><span class="w"> </span><span class="na">if</span><span class="o">=</span><span class="p">{</span><span class="nx">isBrunoReportsAvailable</span><span class="p">}&gt;</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="p">&lt;</span><span class="nt">EntityBrunoContent</span><span class="w"> </span><span class="p">/&gt;</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="p">&lt;/</span><span class="nt">EntityLayout</span><span class="p">.</span><span class="na">Route</span><span class="p">&gt;</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="p">&lt;/</span><span class="nt">EntityLayout</span><span class="p">&gt;</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">);</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// packages/app/src/components/catalog/EntityPage.tsx</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">EntityBrunoContent</span><span class="p">,</span><span class="w"> </span><span class="nx">isBrunoReportsAvailable</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@sbordeyne/backstage-plugin-bruno&#39;</span><span class="p">;</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kd">const</span><span class="w"> </span><span class="nx">serviceEntityPage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="p">&lt;</span><span class="nt">EntityLayout</span><span class="p">&gt;</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="p">{</span><span class="cm">/* … */</span><span class="p">}</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="p">&lt;</span><span class="nt">EntityLayout</span><span class="p">.</span><span class="na">Route</span><span class="w"> </span><span class="na">path</span><span class="o">=</span><span class="s">&quot;/api-tests&quot;</span><span class="w"> </span><span class="na">title</span><span class="o">=</span><span class="s">&quot;API tests&quot;</span><span class="w"> </span><span class="na">if</span><span class="o">=</span><span class="p">{</span><span class="nx">isBrunoReportsAvailable</span><span class="p">}&gt;</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">      </span><span class="p">&lt;</span><span class="nt">EntityBrunoContent</span><span class="w"> </span><span class="p">/&gt;</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="p">&lt;/</span><span class="nt">EntityLayout</span><span class="p">.</span><span class="na">Route</span><span class="p">&gt;</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="p">&lt;/</span><span class="nt">EntityLayout</span><span class="p">&gt;</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="p">);</span>
 </code></pre></div>
 <h3 id="annotate-the-entity">Annotate the entity<a class="headerlink" href="#annotate-the-entity" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># catalog-info.yaml</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage.io/v1alpha1</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Component</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nt">metadata</span><span class="p">:</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">users</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">annotations</span><span class="p">:</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nt">usebruno.com/report-path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">users.json</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="nt">spec</span><span class="p">:</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">service</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group:default/platform</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># catalog-info.yaml</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage.io/v1alpha1</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Component</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">users</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">annotations</span><span class="p">:</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">usebruno.com/report-path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">users.json</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">service</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group:default/platform</span>
 </code></pre></div>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <p>Every key is optional; the defaults below are what runs if you configure nothing.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">bruno</span><span class="p">:</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">bucket</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-ci-artifacts</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">objectPrefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ui_tests/reports/bruno/</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">reportAnnotation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">usebruno.com/report-path</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">retention</span><span class="p">:</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">runsPerEntity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">sync</span><span class="p">:</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="nt">maxObjectSizeBytes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">26214400</span><span class="w"> </span><span class="c1"># 25 MiB</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">    </span><span class="nt">maxStoredBodyBytes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">262144</span><span class="w"> </span><span class="c1"># 256 KiB</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">    </span><span class="nt">maxArtifactAge</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> days</span><span class="p">:</span><span class="w"> </span><span class="nv">30</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">    </span><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">      </span><span class="nt">initialDelay</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> seconds</span><span class="p">:</span><span class="w"> </span><span class="nv">30</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">      </span><span class="nt">frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">15</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">bruno</span><span class="p">:</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gcs</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="nt">gcs</span><span class="p">:</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">      </span><span class="nt">bucket</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-ci-artifacts</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">      </span><span class="nt">prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ui_tests/reports/bruno/</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">      </span><span class="nt">requiredPathSegment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unit</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">reportAnnotation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">usebruno.com/report-path</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span><span class="nt">retention</span><span class="p">:</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="nt">runsPerEntity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">  </span><span class="nt">sync</span><span class="p">:</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">    </span><span class="nt">maxObjectSizeBytes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">26214400</span><span class="w"> </span><span class="c1"># 25 MiB</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">    </span><span class="nt">maxStoredBodyBytes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">262144</span><span class="w"> </span><span class="c1"># 256 KiB</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">    </span><span class="nt">maxArtifactAge</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> days</span><span class="p">:</span><span class="w"> </span><span class="nv">30</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="w">    </span><span class="nt">schedule</span><span class="p">:</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="w">      </span><span class="nt">initialDelay</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> seconds</span><span class="p">:</span><span class="w"> </span><span class="nv">30</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="w">      </span><span class="nt">frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">15</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <table>
 <thead>
@@ -1133,16 +1314,10 @@ report, and it only ever returns true for <code>Component</code> and <code>Syste
 </thead>
 <tbody>
 <tr>
-<td><code>bucket</code></td>
-<td>string</td>
-<td><code>1e42-exchange</code></td>
-<td>GCS bucket holding the report artifacts</td>
-</tr>
-<tr>
-<td><code>objectPrefix</code></td>
-<td>string</td>
-<td><code>ui_tests/reports/bruno/</code></td>
-<td>Object prefix scanned by the sync worker</td>
+<td><code>source.type</code></td>
+<td>enum</td>
+<td><code>gcs</code></td>
+<td><code>gcs</code>, <code>s3</code> or <code>github</code> — see <a href="#sources">Sources</a></td>
 </tr>
 <tr>
 <td><code>reportAnnotation</code></td>
@@ -1205,23 +1380,219 @@ report, and it only ever returns true for <code>Component</code> and <code>Syste
 </ul>
 <p>The task runs with the scheduler's <code>global</code> scope, so exactly one backend replica performs a
 given tick.</p>
-<h2 id="storage-layout-and-ci">Storage layout and CI<a class="headerlink" href="#storage-layout-and-ci" title="Permanent link">&para;</a></h2>
-<p>Bruno writes a JSON report with <code>bru run --output</code>. Upload it under the configured prefix with
-the file name that matches the annotation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>bru<span class="w"> </span>run<span class="w"> </span>--env<span class="w"> </span>ci<span class="w"> </span>--output<span class="w"> </span>users.json<span class="w"> </span>--format<span class="w"> </span>json
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>cp<span class="w"> </span>users.json<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="s2">&quot;gs://my-ci-artifacts/ui_tests/reports/bruno/</span><span class="k">$(</span>date<span class="w"> </span>-u<span class="w"> </span>+%Y-%m-%dT%H:%M:%SZ<span class="k">)</span><span class="s2">/users.json&quot;</span>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h2>
+<h3 id="gcs">GCS<a class="headerlink" href="#gcs" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">bruno</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gcs</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nt">gcs</span><span class="p">:</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="nt">bucket</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-ci-artifacts</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">      </span><span class="nt">prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ui_tests/reports/bruno/</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">      </span><span class="nt">requiredPathSegment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unit</span>
 </code></pre></div>
-<p>The backend diffs on the GCS object <strong>generation</strong>, so re-uploading to the same object path
-creates a new run, and an object rewritten between listing and download is downloaded at the
-generation that was listed rather than silently mixing versions.</p>
-<h3 id="bucket-permissions">Bucket permissions<a class="headerlink" href="#bucket-permissions" title="Permanent link">&para;</a></h3>
-<p>The backend needs to list and read objects under the prefix, and nothing else:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>add-iam-policy-binding<span class="w"> </span>gs://my-ci-artifacts<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--role<span class="o">=</span>roles/storage.objectViewer
-</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bucket</code></td>
+<td>string</td>
+<td><strong>required</strong></td>
+<td>Bucket holding the report artifacts</td>
+</tr>
+<tr>
+<td><code>prefix</code></td>
+<td>string</td>
+<td><code>ui_tests/reports/bruno/</code></td>
+<td>Object prefix scanned by the sync worker</td>
+</tr>
+<tr>
+<td><code>requiredPathSegment</code></td>
+<td>string | false</td>
+<td><code>unit</code></td>
+<td>Directory an object must sit directly under</td>
+</tr>
+</tbody>
+</table>
 <p>Credentials are Application Default Credentials, exactly as for the
+<a href="../gcp-catalog-provider/#authentication">GCP catalog provider</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>add-iam-policy-binding<span class="w"> </span>gs://my-ci-artifacts<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span>--role<span class="o">=</span>roles/storage.objectViewer
+</code></pre></div>
+<p>GCS objects carry a <strong>generation</strong>, so the download pins the generation that was listed: an object
+rewritten in between is not silently mixed into the old run, and the next tick reads it as the new
+run it is.</p>
+<h3 id="s3">S3<a class="headerlink" href="#s3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">bruno</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">s3</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="nt">s3</span><span class="p">:</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">      </span><span class="nt">bucket</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-ci-artifacts</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">      </span><span class="nt">prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ui_tests/reports/bruno/</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">      </span><span class="nt">requiredPathSegment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unit</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">      </span><span class="nt">region</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">eu-west-1</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bucket</code></td>
+<td>string</td>
+<td><strong>required</strong></td>
+<td>Bucket holding the report artifacts</td>
+</tr>
+<tr>
+<td><code>prefix</code></td>
+<td>string</td>
+<td><code>ui_tests/reports/bruno/</code></td>
+<td>Object prefix scanned by the sync worker</td>
+</tr>
+<tr>
+<td><code>requiredPathSegment</code></td>
+<td>string | false</td>
+<td><code>unit</code></td>
+<td>Directory an object must sit directly under</td>
+</tr>
+<tr>
+<td><code>region</code></td>
+<td>string</td>
+<td>STS region, then <code>AWS_REGION</code></td>
+<td>Region of the bucket</td>
+</tr>
+<tr>
+<td><code>endpoint</code></td>
+<td>string</td>
+<td>AWS</td>
+<td>Alternative endpoint, for MinIO and other S3-compatibles</td>
+</tr>
+<tr>
+<td><code>forcePathStyle</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td>Addresses the bucket as a path, as MinIO requires</td>
+</tr>
+<tr>
+<td><code>accountId</code></td>
+<td>string</td>
+<td>the default account</td>
+<td>Which <code>aws.accounts</code> entry to take credentials from</td>
+</tr>
+</tbody>
+</table>
+<p>Credentials come from the <code>aws</code> config block through Backstage's AWS credentials manager, falling
+back to the ambient AWS chain — instance role, <code>AWS_*</code> environment variables, <code>~/.aws/config</code> —
+when there is none:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">aws</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">accounts</span><span class="p">:</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">accountId</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;123456789012&#39;</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">      </span><span class="nt">accessKeyId</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${AWS_ACCESS_KEY_ID}</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">      </span><span class="nt">secretAccessKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${AWS_SECRET_ACCESS_KEY}</span>
+</code></pre></div>
+<p>The IAM policy needs listing and reading, scoped to the prefix:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;Version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2012-10-17&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">&quot;Statement&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">      </span><span class="nt">&quot;Effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Allow&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">      </span><span class="nt">&quot;Action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;s3:ListBucket&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">      </span><span class="nt">&quot;Resource&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;arn:aws:s3:::my-ci-artifacts&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">      </span><span class="nt">&quot;Condition&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;StringLike&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;s3:prefix&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ui_tests/reports/bruno/*&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">      </span><span class="nt">&quot;Effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Allow&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">      </span><span class="nt">&quot;Action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;s3:GetObject&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">      </span><span class="nt">&quot;Resource&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;arn:aws:s3:::my-ci-artifacts/ui_tests/reports/bruno/*&quot;</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="p">}</span>
+</code></pre></div>
+<p>S3 has no generation to pin, so the <strong>ETag</strong> listed is asserted on download with <code>If-Match</code>. An
+object overwritten in between fails that request rather than storing new bytes under the old
+version; the next tick picks it up.</p>
+<h3 id="github-actions-artifacts">GitHub Actions artifacts<a class="headerlink" href="#github-actions-artifacts" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">bruno</span><span class="p">:</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">source</span><span class="p">:</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">github</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="nt">github</span><span class="p">:</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">      </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-org/my-repo</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">      </span><span class="nt">namePrefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bruno-</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">      </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>repository</code></td>
+<td>string</td>
+<td><strong>required</strong></td>
+<td>Repository holding the workflow runs, as <code>owner/repo</code></td>
+</tr>
+<tr>
+<td><code>host</code></td>
+<td>string</td>
+<td><code>github.com</code></td>
+<td>GitHub host, matched against <code>integrations.github</code></td>
+</tr>
+<tr>
+<td><code>namePrefix</code></td>
+<td>string</td>
+<td><code>''</code></td>
+<td>Only artifacts starting with this; stripped before matching</td>
+</tr>
+<tr>
+<td><code>branch</code></td>
+<td>string</td>
+<td>every branch</td>
+<td>Only artifacts from a workflow run on this branch</td>
+</tr>
+</tbody>
+</table>
+<p>Credentials come from the matching <code>integrations.github</code> entry — a token or a GitHub App, as set
+up in <a href="../../guides/integrations/#github">Third-party integrations</a>. The credential needs
+<strong>Actions: read</strong> on the repository, in addition to the metadata read any integration has.</p>
+<p>Expired artifacts are skipped: GitHub keeps them in the listing after deleting their bytes, so
+downloading one is a guaranteed 410. An artifact id is unique per upload and never reused, so it
+is what the sync diffs on — re-running a workflow produces a new run.</p>
+<p><code>sync.maxObjectSizeBytes</code> is checked twice for this source: against the artifact's compressed size
+when listing, and against the entry's uncompressed size before unpacking, so a small archive
+cannot expand without bound.</p>
+<h2 id="ci-upload">CI upload<a class="headerlink" href="#ci-upload" title="Permanent link">&para;</a></h2>
+<p>Bruno writes a JSON report with <code>bru run --output</code>. Upload it with the file name that matches the
+annotation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>bru<span class="w"> </span>run<span class="w"> </span>--env<span class="w"> </span>ci<span class="w"> </span>--output<span class="w"> </span>users.json<span class="w"> </span>--format<span class="w"> </span>json
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="c1"># GCS</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>cp<span class="w"> </span>users.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="s2">&quot;gs://my-ci-artifacts/ui_tests/reports/bruno/</span><span class="k">$(</span>date<span class="w"> </span>-u<span class="w"> </span>+%Y-%m-%dT%H:%M:%SZ<span class="k">)</span><span class="s2">/unit/users.json&quot;</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># S3</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>aws<span class="w"> </span>s3<span class="w"> </span>cp<span class="w"> </span>users.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">  </span><span class="s2">&quot;s3://my-ci-artifacts/ui_tests/reports/bruno/</span><span class="k">$(</span>date<span class="w"> </span>-u<span class="w"> </span>+%Y-%m-%dT%H:%M:%SZ<span class="k">)</span><span class="s2">/unit/users.json&quot;</span>
+</code></pre></div>
+<p>Mind the <code>unit/</code> segment: with the default <code>requiredPathSegment</code> an object that is not directly
+under one is listed and then ignored.</p>
+<p>Credentials for the GCP path are Application Default Credentials, exactly as for the
 <a href="../gcp-catalog-provider/#authentication">GCP catalog provider</a> — see
 <a href="../../guides/gcp-permissions/">GCP permissions</a> for Workload Identity and Terraform.</p>
 <h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
@@ -1272,9 +1643,18 @@ plugin's own tables directly would bypass the catalog's permission model.</p>
 <p><strong>The tab says the annotation is missing.</strong> <code>EntityBrunoContent</code> renders the missing-annotation
 empty state unless the entity is a <code>Component</code> or <code>System</code> carrying <code>usebruno.com/report-path</code>.</p>
 <p><strong>The tab is empty but the annotation is there.</strong> Look for the sync summary line in the backend
-log: it reports how many objects were listed, claimed, unmatched, too old and too large. An
-artifact counted as <code>unmatched</code> means no entity claims that file name — the last path segment
-and the annotation value have to be equal, extension included.</p>
+log: it names the source it is reading and reports how many artifacts were listed, claimed,
+unmatched, too old and too large. An artifact counted as <code>unmatched</code> means no entity claims that
+name — the last path segment and the annotation value have to be equal, extension included.</p>
+<p><strong>Nothing is even listed from an object store.</strong> Almost always <code>requiredPathSegment</code>: with its
+default of <code>unit</code>, an object not sitting directly under a <code>unit/</code> segment is skipped before it is
+counted. Set it to <code>false</code> if your layout has no suite directory.</p>
+<p><strong>A GitHub artifact is listed but fails on download.</strong> Either the archive holds several JSON
+files and none is named after the artifact — name the artifact after the report, or upload one
+report per artifact — or the entry unpacks past <code>sync.maxObjectSizeBytes</code>.</p>
+<p><strong>Migrating from an older install.</strong> <code>bruno.bucket</code> and <code>bruno.objectPrefix</code> still work on their
+own and mean GCS. Setting them alongside <code>bruno.source</code> is refused at startup rather than
+silently resolved, since only one of them can be the intended one.</p>
 <p><strong><code>No catalog entity carries the … annotation</code>.</strong> The worker stops early rather than treating a
 catalog blip as "every report is orphaned". Nothing is deleted when this happens.</p>
 <p><strong><code>POST /v1/sync</code> returns 404.</strong> Sync is disabled — set <code>bruno.sync.enabled</code> to <code>true</code>. Without
@@ -1301,7 +1681,7 @@ this check the failure surfaces as a bare "task does not exist".</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 2, 2026 11:19:50 UTC">August 2, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 2, 2026 14:47:27 UTC">August 2, 2026</span>
   </span>
 
     
