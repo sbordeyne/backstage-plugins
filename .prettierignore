@@ -6,3 +6,8 @@ coverage
 # Docs build output and the venv mise creates to run properdocs
 site
 .venv
+
+# Prettier cannot round-trip the `!!python/name:` tags mkdocs needs here: it
+# reparents the comments that follow them and still reports the result as
+# unformatted.
+properdocs.yml
