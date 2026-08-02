@@ -49,4 +49,13 @@ jobs:
             mise exec -- mike set-default --push latest
           else
             mise exec -- mike deploy --push dev
+            # The site root is only a redirect to the default version, so without
+            # a default `/` is a 404 no matter how many versions are published.
+            # Once a release has been tagged `latest` exists and stays the
+            # default; until then, point the root at dev.
+            if mise exec -- mike list 2>/dev/null | grep -qw latest; then
+              mise exec -- mike set-default --push latest
+            else
+              mise exec -- mike set-default --push dev
+            fi
           fi
