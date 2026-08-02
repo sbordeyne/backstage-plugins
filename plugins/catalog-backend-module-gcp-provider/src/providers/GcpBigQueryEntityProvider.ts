@@ -1,10 +1,8 @@
-import { ANNOTATION_GCP_PROJECT_ID, ANNOTATION_GCP_REGION } from "../constants";
-import { GcpEntityProviderBase } from "./GcpEntityProviderBase";
+import { ANNOTATION_GCP_PROJECT_ID } from '../constants';
+import { GcpEntityProviderBase } from './GcpEntityProviderBase';
 import * as bigquery from '@google-cloud/bigquery';
-import {
-  DeferredEntity
-} from '@backstage/plugin-catalog-node';
-
+import { DeferredEntity } from '@backstage/plugin-catalog-node';
+import { formatResourceName, regionAnnotation } from '../utils';
 
 export class GcpBigQueryEntityProvider extends GcpEntityProviderBase<bigquery.BigQuery> {
   getProviderName(): string {
@@ -21,7 +19,7 @@ export class GcpBigQueryEntityProvider extends GcpEntityProviderBase<bigquery.Bi
 
   async getResources(): Promise<DeferredEntity[]> {
     const bigqueries = await Promise.all(
-      this.config.getStringArray("projects").map(async project => {
+      this.config.getStringArray('projects').map(async project => {
         const [datasets] = await this.client.getDatasets({ projectId: project });
         return datasets.map<DeferredEntity>(dataset => {
           return {
@@ -29,22 +27,22 @@ export class GcpBigQueryEntityProvider extends GcpEntityProviderBase<bigquery.Bi
               apiVersion: 'backstage.io/v1alpha1',
               kind: 'Resource',
               metadata: {
-                name: dataset.id ?? '',
-                namespace: "bigquery-datasets",
+                name: formatResourceName(dataset.id ?? dataset.metadata?.name ?? 'unknown'),
+                namespace: 'bigquery-datasets',
                 annotations: {
                   [ANNOTATION_GCP_PROJECT_ID]: project,
-                  [ANNOTATION_GCP_REGION]: dataset.location ?? 'europe-west1',
+                  ...regionAnnotation(dataset.location ?? this.defaultRegion),
                 },
               },
               spec: {
                 type: 'bigquery-dataset',
-                owner: this.getOwnerReference(dataset),
+                owner: this.defaultOwner,
               },
-            }
+            },
           };
         });
       }),
-    )
+    );
     return bigqueries.flat();
   }
 }

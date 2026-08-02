@@ -1,8 +1,4 @@
-import {
-  DeferredEntity,
-  EntityProvider,
-  EntityProviderConnection,
-} from '@backstage/plugin-catalog-node';
+import { DeferredEntity, EntityProvider, EntityProviderConnection } from '@backstage/plugin-catalog-node';
 import { Config } from '@backstage/config';
 import {
   LoggerService,
@@ -12,7 +8,6 @@ import {
 } from '@backstage/backend-plugin-api';
 import { JWTInput } from 'google-auth-library';
 import fs from 'fs';
-import jmespath from 'jmespath';
 
 /**
  * Catalog provider to ingest GKE clusters
@@ -23,19 +18,16 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
   protected readonly logger: LoggerService;
   private readonly scheduleFn: () => Promise<void>;
   protected readonly config: Config;
+  /** `catalog.providers.gcp`, holding the defaults shared by every provider. */
+  protected readonly gcpConfig: Config;
   protected readonly client: TClient;
   private connection?: EntityProviderConnection;
   protected credentials?: JWTInput;
 
-  public constructor(
-    logger: LoggerService,
-    scheduler: SchedulerService,
-    config: Config,
-  ) {
-    const providerConfig = config.getConfig(`catalog.providers.gcp.${this.getProviderConfigKey()}`);
-    const schedule = readSchedulerServiceTaskScheduleDefinitionFromConfig(
-      providerConfig.getConfig('schedule'),
-    );
+  public constructor(logger: LoggerService, scheduler: SchedulerService, config: Config) {
+    const gcpConfig = config.getConfig('catalog.providers.gcp');
+    const providerConfig = gcpConfig.getConfig(this.getProviderConfigKey());
+    const schedule = readSchedulerServiceTaskScheduleDefinitionFromConfig(providerConfig.getConfig('schedule'));
 
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       logger.info(`Using GOOGLE_APPLICATION_CREDENTIALS: ${process.env.GOOGLE_APPLICATION_CREDENTIALS}`);
@@ -50,7 +42,30 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
     this.logger = logger;
     this.scheduleFn = this.createScheduleFn(scheduler.createScheduledTaskRunner(schedule));
     this.config = providerConfig;
+    this.gcpConfig = gcpConfig;
     this.client = this.getClient();
+  }
+
+  /**
+   * Owner set on every entity this provider emits.
+   *
+   * GCP exposes no ownership that maps onto a Backstage group, so it has to be configured: first
+   * from this provider's `owner`, then from the shared `catalog.providers.gcp.defaultOwner`. The
+   * `unknown` fallback is a valid group ref, so the catalog still accepts the entity, and an
+   * obviously wrong one, so unconfigured installations are visible rather than silently misfiled.
+   */
+  protected get defaultOwner(): string {
+    return this.config.getOptionalString('owner') ?? this.gcpConfig.getOptionalString('defaultOwner') ?? 'unknown';
+  }
+
+  /**
+   * Region recorded when the GCP API reports none for a resource.
+   *
+   * Undefined means the region annotation is left off entirely — an absent region is honest, a
+   * guessed one silently misplaces the resource.
+   */
+  protected get defaultRegion(): string | undefined {
+    return this.config.getOptionalString('region') ?? this.gcpConfig.getOptionalString('defaultRegion');
   }
 
   abstract getProviderName(): string;
@@ -64,9 +79,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
     await this.scheduleFn();
   }
 
-  private createScheduleFn(
-    taskRunner: SchedulerServiceTaskRunner,
-  ): () => Promise<void> {
+  private createScheduleFn(taskRunner: SchedulerServiceTaskRunner): () => Promise<void> {
     return async () => {
       const taskId = `${this.getProviderName()}:refresh`;
       return taskRunner.run({
@@ -75,7 +88,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
           try {
             await this.refresh();
           } catch (error) {
-            this.logger.error("Error:", (error as Error));
+            this.logger.error('Error:', error as Error);
           }
         },
       });
@@ -83,19 +96,6 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
   }
 
   abstract getResources(): Promise<DeferredEntity[]>;
-
-  protected getOwnerReference<T>(resource: T): string {
-    const jmesPath = this.config.getOptionalString('ownerPathExpression');
-    if (!jmesPath) {
-      return 'unknown';  // No owner path expression defined, default to 'unknown'
-    }
-    const owner = jmespath.search(resource, jmesPath);
-    if (typeof owner === 'string' && owner.length > 0) {
-      return owner;
-    }
-    this.logger.warn(`Owner path expression '${jmesPath}' did not return a valid owner reference for resource: ${JSON.stringify(resource)}`);
-    return 'unknown';  // Return 'unknown' if no valid owner reference is found
-  }
 
   async refresh() {
     if (!this.connection) {
@@ -109,15 +109,11 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
     try {
       resources = await this.getResources();
     } catch (e) {
-      this.logger.error('error fetching GCP resources', (e as Error) );
+      this.logger.error('error fetching GCP resources', e as Error);
       return;
     }
 
-    this.logger.info(
-      `Ingesting GCP resources [${resources
-        .map(r => r.entity.metadata.name)
-        .join(', ')}]`,
-    );
+    this.logger.info(`Ingesting GCP resources [${resources.map(r => r.entity.metadata.name).join(', ')}]`);
 
     await this.connection.applyMutation({
       type: 'full',

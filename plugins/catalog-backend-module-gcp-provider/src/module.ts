@@ -1,11 +1,10 @@
+import { coreServices, createBackendModule } from '@backstage/backend-plugin-api';
+import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node';
 import {
-  coreServices,
-  createBackendModule,
-} from '@backstage/backend-plugin-api';
-import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node/alpha';
-import {
-  GcpBigQueryEntityProvider, GcpBucketEntityProvider,
-  GcpCloudSQLEntityProvider, GcpPubSubEntityProvider,
+  GcpBigQueryEntityProvider,
+  GcpBucketEntityProvider,
+  GcpCloudSQLEntityProvider,
+  GcpPubSubEntityProvider,
   GcpSecretEntityProvider,
 } from './providers';
 import { GcpServiceAccountEntityProvider } from './providers/GcpServiceAccountEntityProvider';

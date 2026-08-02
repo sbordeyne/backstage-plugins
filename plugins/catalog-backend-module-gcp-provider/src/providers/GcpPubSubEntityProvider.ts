@@ -1,12 +1,8 @@
-import { GcpEntityProviderBase } from "./GcpEntityProviderBase";
+import { GcpEntityProviderBase } from './GcpEntityProviderBase';
 import * as pubsub from '@google-cloud/pubsub';
-import {
-  DeferredEntity
-} from '@backstage/plugin-catalog-node';
-import {
-  ANNOTATION_LOCATION,
-  ANNOTATION_ORIGIN_LOCATION,
-} from '@backstage/catalog-model';
+import { DeferredEntity } from '@backstage/plugin-catalog-node';
+import { ANNOTATION_LOCATION, ANNOTATION_ORIGIN_LOCATION } from '@backstage/catalog-model';
+import { formatResourceName } from '../utils';
 
 export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub> {
   getProviderName(): string {
@@ -18,7 +14,23 @@ export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub
   }
 
   getClient(): pubsub.PubSub {
-    return new pubsub.PubSub({ credentials: this.credentials });
+    return new pubsub.PubSub();
+  }
+
+  private stripPrefixes(resourceName: string): string {
+    const prefixes = this.config.getOptionalStringArray('stripPrefixes') ?? [];
+    let name = resourceName;
+    let stripped = true;
+    while (stripped) {
+      stripped = false;
+      for (const prefix of prefixes) {
+        if (prefix && name.startsWith(prefix)) {
+          name = name.slice(prefix.length);
+          stripped = true;
+        }
+      }
+    }
+    return name;
   }
 
   private formatName(baseName: string): string {
@@ -26,7 +38,7 @@ export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub
     if (!resourceName) {
       throw new Error(`Invalid resource name: ${baseName}`);
     }
-    const name = resourceName.replace(/happn-/g, '').replace(/(prod|preprod|analytics)-/g, '').trimStart();
+    const name = this.stripPrefixes(resourceName).trimStart();
     if (name.length > 63) {
       // need to truncate the name to 63 characters
       return name.substring(0, 63);
@@ -44,7 +56,7 @@ export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub
         apiVersion: 'backstage.io/v1alpha1',
         kind: 'Resource',
         metadata: {
-          name: this.formatName(subscription.name),
+          name: formatResourceName(this.formatName(subscription.name)),
           annotations: {
             [ANNOTATION_LOCATION]: location,
             [ANNOTATION_ORIGIN_LOCATION]: location,
@@ -53,10 +65,8 @@ export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub
         },
         spec: {
           type: 'pubsub-subscription',
-          owner: this.getOwnerReference(subscription),
-          dependsOn: [
-            `resource:default/${topicName}`
-          ]
+          owner: this.defaultOwner,
+          dependsOn: [`resource:default/${topicName}`],
         },
       },
     };
@@ -68,57 +78,56 @@ export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub
     }
     const location = `${this.getProviderName()}}:${topic.name}`;
     const topicName = this.formatName(topic.name);
-    const [ subscriptions ]= await topic.getSubscriptions();
+    const [subscriptions] = await topic.getSubscriptions();
     const subscriptionResources = subscriptions
       .map(subscription => this.subscriptionToResource(subscription, topicName))
       .filter(sub => sub !== undefined);
     const [topicPolicy] = await topic.iam.getPolicy();
     const bindings = topicPolicy.bindings || [];
     const publisherResourceRefs = bindings
-      .map(binding => binding.role?.includes("publish") ? binding.members ?? [] : [])
+      .map(binding => (binding.role?.includes('publish') ? binding.members ?? [] : []))
       .flat()
-      .map(
-        member => `resource:service-accounts/${member.split("@")[0]}`
-      );
-    return [{
-      entity: {
-        apiVersion: 'backstage.io/v1alpha1',
-        kind: 'Resource',
-        metadata: {
-          name: topicName,
-          annotations: {
-            [ANNOTATION_LOCATION]: location,
-            [ANNOTATION_ORIGIN_LOCATION]: location,
+      .map(member => `resource:service-accounts/${member.split('@')[0]}`);
+    return [
+      {
+        entity: {
+          apiVersion: 'backstage.io/v1alpha1',
+          kind: 'Resource',
+          metadata: {
+            name: topicName,
+            annotations: {
+              [ANNOTATION_LOCATION]: location,
+              [ANNOTATION_ORIGIN_LOCATION]: location,
+            },
+            namespace: 'pubsub-topics',
           },
-          namespace: 'pubsub-topics',
-        },
-        spec: {
-          type: 'pubsub-topic',
-          owner: this.getOwnerReference(topic),
-          dependsOn: [
-            ...publisherResourceRefs
-          ],
+          spec: {
+            type: 'pubsub-topic',
+            owner: this.defaultOwner,
+            dependsOn: [...publisherResourceRefs],
+          },
         },
       },
-    },
-    ...subscriptionResources
-  ];
+      ...subscriptionResources,
+    ];
   }
 
   public async getResources(): Promise<DeferredEntity[]> {
-    const resources = await Promise.all(
-      this.config.getStringArray("projects").map(async project => {
+    const topics = await Promise.all(
+      this.config.getStringArray('projects').map(async project => {
         this.logger.info(`Discovering pubsubs in project: ${project}`);
-        const [topics] = await this.client.getTopics({
+        const [pageTopics] = await this.client.getTopics({
           autoPaginate: true,
         });
-        this.logger.info(`Found ${topics.length} topics in project: ${project}`);
-        return await Promise.all(topics
-          .filter(topic => topic !== undefined)
-          .map(topic => this.topicToResource(topic))
-          .flat() ?? []);
+        this.logger.info(`Found ${pageTopics.length} topics in project: ${project}`);
+        return await Promise.all(
+          pageTopics
+            .filter(topic => topic !== undefined)
+            .map(topic => this.topicToResource(topic))
+            .flat() ?? [],
+        );
       }),
     );
-    return resources.flat(2);
+    return topics.flat(2);
   }
 }
