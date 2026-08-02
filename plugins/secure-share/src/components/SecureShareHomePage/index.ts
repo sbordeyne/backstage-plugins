@@ -1,0 +1,1 @@
+export { SecureShareHomePage } from './SecureShareHomePage';

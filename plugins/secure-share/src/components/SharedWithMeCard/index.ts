@@ -1,0 +1,1 @@
+export { SharedWithMeCard } from './SharedWithMeCard';

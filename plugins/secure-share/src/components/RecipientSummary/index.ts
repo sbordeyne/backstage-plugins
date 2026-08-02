@@ -1,0 +1,1 @@
+export { RecipientSummary } from './RecipientSummary';

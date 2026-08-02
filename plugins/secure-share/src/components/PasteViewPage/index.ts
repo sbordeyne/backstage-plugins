@@ -1,0 +1,1 @@
+export { PasteViewPage } from './PasteViewPage';

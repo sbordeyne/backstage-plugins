@@ -1,0 +1,1 @@
+export { CreatedPastePanel } from './CreatedPastePanel';
