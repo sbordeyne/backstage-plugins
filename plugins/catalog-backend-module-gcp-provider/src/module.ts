@@ -11,7 +11,11 @@ import {
   GcpServiceAccountEntityProvider,
 } from './providers';
 
-type GcpEntityProviderClass = new (logger: LoggerService, scheduler: SchedulerService, config: Config) => EntityProvider;
+type GcpEntityProviderClass = new (
+  logger: LoggerService,
+  scheduler: SchedulerService,
+  config: Config,
+) => EntityProvider;
 
 /** Config key under `catalog.providers.gcp` that turns each provider on. */
 const PROVIDERS: Record<string, GcpEntityProviderClass> = {
