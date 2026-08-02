@@ -1,0 +1,1 @@
+export { IntegratedRepositoriesPage } from './IntegratedRepositoriesPage';
