@@ -85,13 +85,14 @@ export interface BrunoRunSummary {
   id: string;
   entityRef: string;
   reportName: string;
-  /** ISO-8601. When the artifact was created in the bucket. */
+  /** ISO-8601. When the artifact was created at its source. */
   artifactCreatedAt: string;
   /** ISO-8601. When the worker last ingested it. */
   syncedAt: string;
   iterationCount: number;
   status: 'pass' | 'fail';
-  gcsObject: string;
+  /** Where the artifact sat at its source: an object path, or a bare artifact name. */
+  artifactPath: string;
   resultsCount: number;
   summary: BrunoReportSummary;
 }

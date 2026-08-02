@@ -42,7 +42,7 @@ function makeRun(id: string): BrunoRunSummary {
     syncedAt: '2026-07-01T10:05:00.000Z',
     iterationCount: 1,
     status: 'pass',
-    gcsObject: `ui_tests/reports/bruno/${id}/unit/sample.json`,
+    artifactPath: `ui_tests/reports/bruno/${id}/unit/sample.json`,
     resultsCount: 10,
     summary,
   };

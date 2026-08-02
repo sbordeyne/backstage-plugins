@@ -24,15 +24,20 @@
     "postpack": "backstage-cli package postpack"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
     "@backstage/backend-defaults": "backstage:^",
     "@backstage/backend-plugin-api": "backstage:^",
     "@backstage/catalog-client": "backstage:^",
     "@backstage/catalog-model": "backstage:^",
     "@backstage/errors": "backstage:^",
+    "@backstage/integration": "backstage:^",
+    "@backstage/integration-aws-node": "backstage:^",
     "@backstage/plugin-catalog-node": "backstage:^",
     "@backstage/types": "backstage:^",
     "@google-cloud/storage": "^7.18.0",
+    "@octokit/rest": "^19.0.13",
     "@sbordeyne/bruno-report-type": "workspace:^",
+    "adm-zip": "^0.5.16",
     "express": "^4.17.1",
     "express-promise-router": "^4.1.0",
     "knex": "^3.0.0",
@@ -41,6 +46,8 @@
   "devDependencies": {
     "@backstage/backend-test-utils": "backstage:^",
     "@backstage/cli": "backstage:^",
+    "@backstage/config": "backstage:^",
+    "@types/adm-zip": "^0.5.7",
     "@types/express": "^4.17.6",
     "@types/supertest": "^2.0.12",
     "supertest": "^6.2.4"

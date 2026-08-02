@@ -4,15 +4,15 @@ import type { catalogServiceRef } from '@backstage/plugin-catalog-node';
 
 import type { BrunoConfig } from '../config';
 import type { BrunoStore } from '../database/BrunoStore';
-import type { BrunoArtifactRef, BrunoArtifactSource } from '../gcs/BrunoArtifactSource';
+import type { BrunoArtifactRef, BrunoArtifactSource, BrunoSourceType } from '../sources';
 import { BrunoSyncWorker } from './BrunoSyncWorker';
 
 const PREFIX = 'ui_tests/reports/bruno/';
 
 function artifact(overrides: Partial<BrunoArtifactRef> & { name: string }): BrunoArtifactRef {
   return {
-    bucket: 'test-bucket',
-    generation: '1',
+    source: 'gs://test-bucket',
+    version: '1',
     createdAt: new Date('2026-07-01T00:00:00.000Z'),
     sizeBytes: 512,
     ...overrides,
@@ -46,15 +46,14 @@ function reportBody(requestCount = 1): Buffer {
 }
 
 class FakeArtifactSource implements BrunoArtifactSource {
+  readonly type: BrunoSourceType = 'gcs';
   readonly downloads: string[] = [];
 
   constructor(private readonly objects: Map<string, { ref: BrunoArtifactRef; body: Buffer | Error }>) {}
 
-  async *list(prefix: string): AsyncIterable<BrunoArtifactRef> {
+  async *list(): AsyncIterable<BrunoArtifactRef> {
     for (const { ref } of this.objects.values()) {
-      if (ref.name.startsWith(prefix)) {
-        yield ref;
-      }
+      yield ref;
     }
   }
 
@@ -102,8 +101,7 @@ function makeStore(overrides: Partial<Record<keyof BrunoStore, unknown>> = {}) {
 
 function makeConfig(overrides: Partial<BrunoConfig> = {}): BrunoConfig {
   return {
-    bucket: 'test-bucket',
-    objectPrefix: PREFIX,
+    source: { type: 'gcs', bucket: 'test-bucket', prefix: PREFIX, requiredPathSegment: 'unit' },
     reportAnnotation: 'usebruno.com/report-path',
     retention: { runsPerEntity: 20 },
     sync: {
@@ -157,11 +155,8 @@ describe('BrunoSyncWorker', () => {
     );
   });
 
-  it('ignores objects no entity claims and objects outside a unit/ folder', async () => {
-    const source = makeSource([
-      { ref: artifact({ name: `${PREFIX}2026-07-01/unit/unknown.json` }) },
-      { ref: artifact({ name: `${PREFIX}2026-07-01/integration/sample.json` }) },
-    ]);
+  it('ignores artifacts no entity claims', async () => {
+    const source = makeSource([{ ref: artifact({ name: `${PREFIX}2026-07-01/unit/unknown.json` }) }]);
     const { worker, store } = makeWorker({ source });
 
     const stats = await worker.syncOnce();
@@ -171,7 +166,23 @@ describe('BrunoSyncWorker', () => {
     expect(stats.unmatched).toBe(1);
   });
 
-  it('does not re-download an artifact whose generation is unchanged', async () => {
+  it('matches on the last path segment alone, whatever the source puts in front of it', async () => {
+    // A GitHub artifact is a bare name; an object is a path. Both claim the
+    // same report, because only the last segment identifies it.
+    const source = makeSource([{ ref: artifact({ name: 'sample.json' }) }]);
+    const { worker, store } = makeWorker({ source });
+
+    const stats = await worker.syncOnce();
+
+    expect(stats.inserted).toBe(1);
+    expect(store.insertRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        run: expect.objectContaining({ reportName: 'sample.json', artifactPath: 'sample.json' }),
+      }),
+    );
+  });
+
+  it('does not re-download an artifact whose version is unchanged', async () => {
     const source = makeSource([{ ref: artifact({ name: `${PREFIX}a/unit/sample.json` }) }]);
     const store = makeStore();
     const { worker } = makeWorker({ source, store });
@@ -184,15 +195,15 @@ describe('BrunoSyncWorker', () => {
     expect(source.downloads).toHaveLength(1);
   });
 
-  it('re-downloads and supersedes when the generation changes', async () => {
-    const source = makeSource([{ ref: artifact({ name: `${PREFIX}a/unit/sample.json`, generation: '2' }) }]);
+  it('re-downloads and supersedes when the version changes', async () => {
+    const source = makeSource([{ ref: artifact({ name: `${PREFIX}a/unit/sample.json`, version: '2' }) }]);
     const { worker, store } = makeWorker({ source });
 
     await worker.syncOnce();
 
     expect(source.downloads).toHaveLength(1);
     expect(store.deleteSupersededRuns).toHaveBeenCalledWith(
-      expect.objectContaining({ gcsObject: `${PREFIX}a/unit/sample.json` }),
+      expect.objectContaining({ artifactPath: `${PREFIX}a/unit/sample.json` }),
     );
   });
 
@@ -329,6 +340,7 @@ describe('BrunoSyncWorker', () => {
 
   it('fails loudly instead of hanging when storage never responds', async () => {
     const hangingSource: BrunoArtifactSource = {
+      type: 'gcs',
       // eslint-disable-next-line require-yield
       async *list() {
         await new Promise(() => {});

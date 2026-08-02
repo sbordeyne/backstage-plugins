@@ -3,7 +3,7 @@ import { catalogServiceRef } from '@backstage/plugin-catalog-node';
 
 import { readBrunoConfig } from './config';
 import { BrunoStore } from './database/BrunoStore';
-import { GcsArtifactSource } from './gcs/BrunoArtifactSource';
+import { createArtifactSource } from './sources';
 import { SYNC_TASK_ID, createRouter } from './router';
 import { BrunoSyncWorker } from './sync/BrunoSyncWorker';
 
@@ -41,7 +41,12 @@ export const brunoPlugin = createBackendPlugin({
 
         const worker = new BrunoSyncWorker({
           store,
-          source: new GcsArtifactSource(brunoConfig.bucket),
+          source: await createArtifactSource({
+            source: brunoConfig.source,
+            maxObjectSizeBytes: brunoConfig.sync.maxObjectSizeBytes,
+            rootConfig: config,
+            logger,
+          }),
           catalog,
           auth,
           logger,

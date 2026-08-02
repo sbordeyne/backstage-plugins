@@ -41,7 +41,7 @@ const RUN_COLUMNS = [
   'id',
   'entity_ref',
   'report_name',
-  'gcs_object',
+  'artifact_path',
   'artifact_created_at',
   'synced_at',
   'iteration_count',
@@ -145,17 +145,17 @@ export class BrunoStore {
     });
   }
 
-  /** Drops older generations of the same object once a newer one is stored. */
+  /** Drops older versions of the same artifact once a newer one is stored. */
   async deleteSupersededRuns(options: {
     entityRef: string;
-    gcsBucket: string;
-    gcsObject: string;
+    artifactSource: string;
+    artifactPath: string;
     keepRunId: string;
   }): Promise<number> {
     return this.db('bruno_runs')
       .where('entity_ref', options.entityRef)
-      .andWhere('gcs_bucket', options.gcsBucket)
-      .andWhere('gcs_object', options.gcsObject)
+      .andWhere('artifact_source', options.artifactSource)
+      .andWhere('artifact_path', options.artifactPath)
       .andWhereNot('id', options.keepRunId)
       .del();
   }
@@ -334,11 +334,12 @@ function toRunRow(run: NewRun, resultsCount: number): Record<string, unknown> {
     run_key: run.runKey,
     entity_ref: run.entityRef,
     report_name: run.reportName,
-    gcs_bucket: run.gcsBucket,
-    gcs_object: run.gcsObject,
-    gcs_generation: run.gcsGeneration,
-    gcs_etag: run.gcsEtag,
-    gcs_size_bytes: run.gcsSizeBytes,
+    source_type: run.sourceType,
+    artifact_source: run.artifactSource,
+    artifact_path: run.artifactPath,
+    artifact_version: run.artifactVersion,
+    artifact_etag: run.artifactEtag,
+    artifact_size_bytes: run.artifactSizeBytes,
     artifact_created_at: run.artifactCreatedAt,
     synced_at: new Date(),
     iteration_count: run.iterationCount,
@@ -402,7 +403,7 @@ function toRunSummary(row: any): BrunoRunSummary {
     iterationCount: Number(row.iteration_count),
     resultsCount: Number(row.results_count),
     status: row.status,
-    gcsObject: row.gcs_object,
+    artifactPath: row.artifact_path,
     summary: toSummary(row),
   };
 }

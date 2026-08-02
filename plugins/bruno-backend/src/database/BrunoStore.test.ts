@@ -68,7 +68,7 @@ function makeRun(options: {
   entityRef?: string;
   createdAt?: Date;
   results?: NewResult[];
-  gcsObject?: string;
+  artifactPath?: string;
   runKey?: string;
 }): InsertRunInput {
   const id = randomUUID();
@@ -78,11 +78,12 @@ function makeRun(options: {
       runKey: options.runKey ?? randomUUID(),
       entityRef: options.entityRef ?? 'component:default/sample',
       reportName: 'sample.json',
-      gcsBucket: 'test-bucket',
-      gcsObject: options.gcsObject ?? `ui_tests/reports/bruno/${id}/unit/sample.json`,
-      gcsGeneration: '1',
-      gcsEtag: null,
-      gcsSizeBytes: 1024,
+      sourceType: 'gcs',
+      artifactSource: 'gs://test-bucket',
+      artifactPath: options.artifactPath ?? `ui_tests/reports/bruno/${id}/unit/sample.json`,
+      artifactVersion: '1',
+      artifactEtag: null,
+      artifactSizeBytes: 1024,
       artifactCreatedAt: options.createdAt ?? new Date('2026-07-01T10:00:00.000Z'),
       iterationCount: 1,
       status: 'pass',
@@ -256,16 +257,16 @@ describe('BrunoStore', () => {
       expect(remaining.items).toHaveLength(4);
     });
 
-    it('deletes superseded generations of the same object', async () => {
+    it('deletes superseded versions of the same artifact', async () => {
       const store = await createStore(databaseId);
-      const gcsObject = 'ui_tests/reports/bruno/run/unit/sample.json';
-      await store.insertRun(makeRun({ gcsObject }));
-      const kept = await store.insertRun(makeRun({ gcsObject }));
+      const artifactPath = 'ui_tests/reports/bruno/run/unit/sample.json';
+      await store.insertRun(makeRun({ artifactPath }));
+      const kept = await store.insertRun(makeRun({ artifactPath }));
 
       const deleted = await store.deleteSupersededRuns({
         entityRef: 'component:default/sample',
-        gcsBucket: 'test-bucket',
-        gcsObject,
+        artifactSource: 'gs://test-bucket',
+        artifactPath,
         keepRunId: kept.runId,
       });
 

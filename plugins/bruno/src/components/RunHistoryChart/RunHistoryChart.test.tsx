@@ -37,7 +37,7 @@ function makeRun(
     syncedAt: options.at,
     iterationCount: 1,
     status: options.failed > 0 ? 'fail' : 'pass',
-    gcsObject: `ui_tests/reports/bruno/${id}/unit/sample.json`,
+    artifactPath: `ui_tests/reports/bruno/${id}/unit/sample.json`,
     resultsCount: summary.totalRequests,
     summary,
   };

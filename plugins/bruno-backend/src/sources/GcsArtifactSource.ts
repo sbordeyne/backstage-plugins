@@ -1,40 +1,38 @@
 import * as storage from '@google-cloud/storage';
 
-export interface BrunoArtifactRef {
-  bucket: string;
-  name: string;
-  /** GCS's immutable per-write version id — the correct change-detection token. */
-  generation: string;
-  etag?: string;
-  createdAt: Date;
-  sizeBytes?: number;
-}
+import { matchesRequiredSegment } from './objectPath';
+import type { BrunoArtifactRef, BrunoArtifactSource, BrunoSourceType } from './types';
 
-/**
- * The worker talks to this rather than to `@google-cloud/storage` directly, so it
- * can be exercised without Application Default Credentials.
- */
-export interface BrunoArtifactSource {
-  list(prefix: string): AsyncIterable<BrunoArtifactRef>;
-  download(ref: BrunoArtifactRef): Promise<Buffer>;
+export interface GcsSourceOptions {
+  bucket: string;
+  prefix: string;
+  requiredPathSegment: string;
 }
 
 export class GcsArtifactSource implements BrunoArtifactSource {
-  readonly #bucket: storage.Bucket;
-  readonly #bucketName: string;
+  readonly type: BrunoSourceType = 'gcs';
 
-  constructor(bucketName: string, client: storage.Storage = new storage.Storage()) {
-    this.#bucketName = bucketName;
-    this.#bucket = client.bucket(bucketName);
+  readonly #bucket: storage.Bucket;
+  readonly #options: GcsSourceOptions;
+
+  constructor(options: GcsSourceOptions, client: storage.Storage = new storage.Storage()) {
+    this.#options = options;
+    this.#bucket = client.bucket(options.bucket);
   }
 
-  async *list(prefix: string): AsyncIterable<BrunoArtifactRef> {
+  async *list(abortSignal?: AbortSignal): AsyncIterable<BrunoArtifactRef> {
     // No `fields` projection here: restricting it stops the client from
     // populating File#metadata at all, which leaves every object without the
     // generation the sync diffs on.
-    const stream = this.#bucket.getFilesStream({ prefix, autoPaginate: true });
+    const stream = this.#bucket.getFilesStream({ prefix: this.#options.prefix, autoPaginate: true });
 
     for await (const file of stream as AsyncIterable<storage.File>) {
+      if (abortSignal?.aborted) {
+        break;
+      }
+      if (!matchesRequiredSegment(file.name, this.#options.requiredPathSegment)) {
+        continue;
+      }
       yield this.toRef(file);
     }
   }
@@ -43,16 +41,16 @@ export class GcsArtifactSource implements BrunoArtifactSource {
     // Pinning the generation closes the race where the object is overwritten
     // between listing and downloading, which would store new bytes under the old
     // generation and suppress the next sync.
-    const [contents] = await this.#bucket.file(ref.name, { generation: ref.generation }).download();
+    const [contents] = await this.#bucket.file(ref.name, { generation: ref.version }).download();
     return contents;
   }
 
   private toRef(file: storage.File): BrunoArtifactRef {
     const metadata = file.metadata ?? {};
     return {
-      bucket: this.#bucketName,
+      source: `gs://${this.#options.bucket}`,
       name: file.name,
-      generation: String(metadata.generation ?? ''),
+      version: String(metadata.generation ?? ''),
       etag: metadata.etag,
       createdAt: metadata.timeCreated ? new Date(metadata.timeCreated) : new Date(0),
       sizeBytes: metadata.size === undefined ? undefined : Number(metadata.size),

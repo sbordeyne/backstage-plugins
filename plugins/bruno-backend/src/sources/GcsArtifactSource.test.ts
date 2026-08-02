@@ -1,6 +1,6 @@
 import * as storage from '@google-cloud/storage';
 
-import { GcsArtifactSource } from './BrunoArtifactSource';
+import { GcsArtifactSource } from './GcsArtifactSource';
 
 interface FakeFile {
   name: string;
@@ -22,6 +22,10 @@ function fakeStorage(files: FakeFile[], capture: { options?: Record<string, unkn
   } as unknown as storage.Storage;
 }
 
+function sourceOptions(prefix: string, requiredPathSegment = 'unit') {
+  return { bucket: 'test-bucket', prefix, requiredPathSegment };
+}
+
 describe('GcsArtifactSource', () => {
   it('maps object metadata onto the artifact ref', async () => {
     const capture: { options?: Record<string, unknown> } = {};
@@ -39,18 +43,18 @@ describe('GcsArtifactSource', () => {
       ],
       capture,
     );
-    const source = new GcsArtifactSource('test-bucket', client);
+    const source = new GcsArtifactSource(sourceOptions('ui_tests/reports/bruno/'), client);
 
     const refs = [];
-    for await (const ref of source.list('ui_tests/reports/bruno/')) {
+    for await (const ref of source.list()) {
       refs.push(ref);
     }
 
     expect(refs).toEqual([
       {
-        bucket: 'test-bucket',
+        source: 'gs://test-bucket',
         name: 'ui_tests/reports/bruno/run/unit/users.json',
-        generation: '1782910747095999',
+        version: '1782910747095999',
         etag: 'abc',
         createdAt: new Date('2026-07-01T12:59:07.098Z'),
         sizeBytes: 495049,
@@ -62,9 +66,9 @@ describe('GcsArtifactSource', () => {
     // A `fields` projection stops the client populating File#metadata entirely,
     // so every ref loses the generation the sync diffs on and listing throws.
     const capture: { options?: Record<string, unknown> } = {};
-    const source = new GcsArtifactSource('test-bucket', fakeStorage([], capture));
+    const source = new GcsArtifactSource(sourceOptions('prefix/'), fakeStorage([], capture));
 
-    for await (const _ of source.list('prefix/')) {
+    for await (const _ of source.list()) {
       // drain
     }
 
@@ -74,16 +78,16 @@ describe('GcsArtifactSource', () => {
   it('tolerates an object with no metadata', async () => {
     const capture: { options?: Record<string, unknown> } = {};
     const source = new GcsArtifactSource(
-      'test-bucket',
+      sourceOptions('ui_tests/reports/bruno/'),
       fakeStorage([{ name: 'ui_tests/reports/bruno/run/unit/users.json' }], capture),
     );
 
     const refs = [];
-    for await (const ref of source.list('ui_tests/reports/bruno/')) {
+    for await (const ref of source.list()) {
       refs.push(ref);
     }
 
     expect(refs).toHaveLength(1);
-    expect(refs[0].generation).toBe('');
+    expect(refs[0].version).toBe('');
   });
 });

@@ -40,11 +40,14 @@ export interface NewRun {
   runKey: string;
   entityRef: string;
   reportName: string;
-  gcsBucket: string;
-  gcsObject: string;
-  gcsGeneration: string;
-  gcsEtag: string | null;
-  gcsSizeBytes: number | null;
+  /** Which kind of store the artifact came from: `gcs`, `s3` or `github`. */
+  sourceType: string;
+  /** The container it came from: `gs://bucket`, `s3://bucket`, `github://owner/repo`. */
+  artifactSource: string;
+  artifactPath: string;
+  artifactVersion: string;
+  artifactEtag: string | null;
+  artifactSizeBytes: number | null;
   artifactCreatedAt: Date;
   iterationCount: number;
   status: 'pass' | 'fail';

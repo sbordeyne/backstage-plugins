@@ -8,7 +8,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { BrunoConfig } from '../config';
 import type { BrunoStore } from '../database/BrunoStore';
 import type { InsertRunInput, NewResult } from '../database/types';
-import type { BrunoArtifactRef, BrunoArtifactSource } from '../gcs/BrunoArtifactSource';
+import type { BrunoArtifactRef, BrunoArtifactSource, BrunoSourceType } from '../sources';
 import { mapWithConcurrency } from '../util/concurrency';
 import { deriveRunStatus, parseArtifact, sumSummaries } from './parseArtifact';
 
@@ -26,6 +26,7 @@ export interface SyncStats {
 
 interface Candidate {
   ref: BrunoArtifactRef;
+  sourceType: BrunoSourceType;
   reportName: string;
   entityRef: string;
   runKey: string;
@@ -50,7 +51,7 @@ export class BrunoSyncWorker {
     // Logged before any I/O: without it a tick that stalls on the catalog or on
     // storage is indistinguishable from one that never started.
     logger.info(
-      `Bruno sync starting (bucket '${config.bucket}', prefix '${config.objectPrefix}', ` +
+      `Bruno sync starting (source '${describeSource(config.source)}', ` +
         `annotation '${config.reportAnnotation}', retention ${config.retention.runsPerEntity})`,
     );
 
@@ -173,17 +174,18 @@ export class BrunoSyncWorker {
     const cutoff = config.sync.maxArtifactAgeMs ? Date.now() - config.sync.maxArtifactAgeMs : undefined;
     const candidates: Candidate[] = [];
 
-    for await (const ref of source.list(config.objectPrefix)) {
+    for await (const ref of source.list(abortSignal)) {
       if (abortSignal?.aborted) {
         break;
       }
       stats.listed++;
 
+      // Only the last segment identifies the report. Which artifacts a source
+      // offers at all — a prefix, a suite directory, a branch — is the source's
+      // own business, so that a GitHub artifact with no path matches the same way
+      // an object 5 directories deep does.
       const segments = ref.name.split('/');
       const reportName = segments[segments.length - 1];
-      if (segments[segments.length - 2] !== 'unit') {
-        continue;
-      }
 
       const entityRefs = entityRefsByReportName.get(reportName);
       if (!entityRefs) {
@@ -200,7 +202,13 @@ export class BrunoSyncWorker {
       }
 
       for (const entityRef of entityRefs) {
-        candidates.push({ ref, reportName, entityRef, runKey: buildRunKey(ref, entityRef) });
+        candidates.push({
+          ref,
+          sourceType: source.type,
+          reportName,
+          entityRef,
+          runKey: buildRunKey(ref, entityRef),
+        });
       }
     }
 
@@ -254,8 +262,8 @@ export class BrunoSyncWorker {
       stats.inserted++;
       await store.deleteSupersededRuns({
         entityRef: candidate.entityRef,
-        gcsBucket: candidate.ref.bucket,
-        gcsObject: candidate.ref.name,
+        artifactSource: candidate.ref.source,
+        artifactPath: candidate.ref.name,
         keepRunId: input.run.id,
       });
     } catch (error) {
@@ -296,7 +304,19 @@ function emptyStats(): SyncStats {
 }
 
 function buildRunKey(ref: BrunoArtifactRef, entityRef: string): string {
-  return createHash('sha256').update(`${ref.bucket}\n${ref.name}\n${ref.generation}\n${entityRef}`).digest('hex');
+  return createHash('sha256').update(`${ref.source}\n${ref.name}\n${ref.version}\n${entityRef}`).digest('hex');
+}
+
+/** One line naming where a tick is reading from, whichever kind of source it is. */
+function describeSource(source: BrunoConfig['source']): string {
+  switch (source.type) {
+    case 'github':
+      return `github://${source.owner}/${source.repo}`;
+    case 's3':
+      return `s3://${source.bucket}/${source.prefix}`;
+    default:
+      return `gs://${source.bucket}/${source.prefix}`;
+  }
 }
 
 export function buildInsertRunInput(
@@ -321,11 +341,12 @@ export function buildInsertRunInput(
       runKey: candidate.runKey,
       entityRef: candidate.entityRef,
       reportName: candidate.reportName,
-      gcsBucket: candidate.ref.bucket,
-      gcsObject: candidate.ref.name,
-      gcsGeneration: candidate.ref.generation,
-      gcsEtag: candidate.ref.etag ?? null,
-      gcsSizeBytes: candidate.ref.sizeBytes ?? null,
+      sourceType: candidate.sourceType,
+      artifactSource: candidate.ref.source,
+      artifactPath: candidate.ref.name,
+      artifactVersion: candidate.ref.version,
+      artifactEtag: candidate.ref.etag ?? null,
+      artifactSizeBytes: candidate.ref.sizeBytes ?? null,
       artifactCreatedAt: candidate.ref.createdAt,
       iterationCount: iterations.length,
       status: deriveRunStatus(summary),
