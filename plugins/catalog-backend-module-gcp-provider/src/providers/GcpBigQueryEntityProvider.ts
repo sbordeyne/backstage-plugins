@@ -36,7 +36,7 @@ export class GcpBigQueryEntityProvider extends GcpEntityProviderBase<bigquery.Bi
               },
               spec: {
                 type: 'bigquery-dataset',
-                owner: this.defaultOwner,
+                owner: this.ownerOf(dataset.metadata?.labels),
               },
             },
           };

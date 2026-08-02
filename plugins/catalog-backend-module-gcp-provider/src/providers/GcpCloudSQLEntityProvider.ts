@@ -43,7 +43,7 @@ export class GcpCloudSQLEntityProvider extends GcpEntityProviderBase<sql.SqlInst
         },
         spec: {
           type: 'cloudsql-instance',
-          owner: this.defaultOwner,
+          owner: this.ownerOf(instance.settings?.userLabels),
         },
       },
     };

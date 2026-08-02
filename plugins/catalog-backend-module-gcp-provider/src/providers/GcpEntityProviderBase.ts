@@ -8,6 +8,8 @@ import {
 } from '@backstage/backend-plugin-api';
 import { JWTInput } from 'google-auth-library';
 import fs from 'fs';
+import { DEFAULT_OWNER_LABEL } from '../constants';
+import { GcpLabels, parseOwnerRef, readLabel } from '../utils';
 
 /**
  * Catalog provider to ingest GKE clusters
@@ -47,15 +49,52 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
   }
 
   /**
-   * Owner set on every entity this provider emits.
+   * Owner used for a resource that names none of its own.
    *
-   * GCP exposes no ownership that maps onto a Backstage group, so it has to be configured: first
-   * from this provider's `owner`, then from the shared `catalog.providers.gcp.defaultOwner`. The
-   * `unknown` fallback is a valid group ref, so the catalog still accepts the entity, and an
-   * obviously wrong one, so unconfigured installations are visible rather than silently misfiled.
+   * Read first from this provider's `owner`, then from the shared
+   * `catalog.providers.gcp.defaultOwner`. The `unknown` fallback is a valid group ref, so the
+   * catalog still accepts the entity, and an obviously wrong one, so unconfigured installations are
+   * visible rather than silently misfiled.
    */
   protected get defaultOwner(): string {
     return this.config.getOptionalString('owner') ?? this.gcpConfig.getOptionalString('defaultOwner') ?? 'unknown';
+  }
+
+  /**
+   * Label carrying the entity ref of a resource's owner, from this provider's `ownerLabel`, then
+   * the shared `catalog.providers.gcp.ownerLabel`, then {@link DEFAULT_OWNER_LABEL}.
+   */
+  protected get ownerLabel(): string {
+    return (
+      this.config.getOptionalString('ownerLabel') ??
+      this.gcpConfig.getOptionalString('ownerLabel') ??
+      DEFAULT_OWNER_LABEL
+    );
+  }
+
+  /**
+   * Owner of a single resource, taken from its labels when they name one and falling back to
+   * {@link defaultOwner} when they do not.
+   *
+   * Ownership is claimed on the GCP side rather than configured here, so a team that relabels a
+   * resource moves it in the catalog without anyone touching Backstage config. A label that is not
+   * a usable entity ref is logged and ignored, because a rejected entity would take the whole
+   * project's mutation down with it.
+   */
+  protected ownerOf(labels: GcpLabels): string {
+    const value = readLabel(labels, this.ownerLabel);
+    if (!value) {
+      return this.defaultOwner;
+    }
+    try {
+      return parseOwnerRef(value);
+    } catch (error) {
+      this.logger.warn(
+        `Ignoring ${this.ownerLabel}='${value}', not a valid entity ref, using ${this.defaultOwner} instead`,
+        error as Error,
+      );
+      return this.defaultOwner;
+    }
   }
 
   /**

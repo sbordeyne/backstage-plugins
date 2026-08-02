@@ -64,7 +64,7 @@ export class GcpClustersEntityProvider extends GcpEntityProviderBase<container.C
         },
         spec: {
           type: 'kubernetes-cluster',
-          owner: this.defaultOwner,
+          owner: this.ownerOf(cluster.resourceLabels),
         },
       },
     };

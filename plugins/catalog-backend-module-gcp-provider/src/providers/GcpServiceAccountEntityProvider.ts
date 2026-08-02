@@ -51,6 +51,8 @@ export class GcpServiceAccountEntityProvider extends GcpEntityProviderBase<iam_v
           namespace: 'service-accounts',
         },
         spec: {
+          // IAM service accounts carry no labels, so there is nothing to read an owner from and
+          // these entities always fall back to the configured owner.
           type: 'google-service-account',
           owner: this.defaultOwner,
         },

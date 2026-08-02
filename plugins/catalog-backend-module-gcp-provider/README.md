@@ -24,9 +24,13 @@ provider takes a `projects` list and a `schedule` block, and accepts the optiona
 catalog:
   providers:
     gcp:
-      # Applied to every provider below unless it sets its own `owner` / `region`.
+      # Applied to every provider below unless it sets its own
+      # `owner` / `ownerLabel` / `region`.
       defaultOwner: group:default/platform
       defaultRegion: europe-west1
+      # Label read off each resource to find its owner.
+      # Defaults to 'backstage.io/owner-ref'.
+      ownerLabel: backstage.io/owner-ref
 
       service-account:
         projects: [my-project]
@@ -62,10 +66,31 @@ catalog:
 
 ### Ownership
 
-GCP exposes nothing that maps onto a Backstage group, so `spec.owner` cannot be inferred from the
-resource. It is resolved per provider as `owner` → `defaultOwner` → `unknown`. The `unknown`
-fallback is a valid ref, so the catalog still accepts the entities, and an obviously wrong one, so
-an unconfigured installation is visible instead of silently misfiled.
+`spec.owner` is taken from a label on the GCP resource itself, so a team that relabels a resource
+moves it in the catalog without anyone editing Backstage config. The label key is `ownerLabel`,
+defaulting to `backstage.io/owner-ref`, and is resolved per provider as `ownerLabel` →
+`catalog.providers.gcp.ownerLabel` → the default.
+
+Two GCP restrictions shape how the label is written:
+
+- **Keys** must match `[a-z]([-a-z0-9_]{0,62})?`, so `backstage.io/owner-ref` cannot be set on a
+  resource at all. The key is therefore also matched with `.` and `/` folded to underscores, and
+  the label you actually put on a resource is `backstage_io_owner-ref`. Configure `ownerLabel`
+  directly if you prefer a plain key such as `backstage-owner-ref`.
+- **Values** are restricted the same way, so a full entity ref does not fit. A bare value like
+  `platform-team` is read as `group:default/platform-team`. A value that does name a kind or
+  namespace is parsed as the ref it already is.
+
+```bash
+gcloud storage buckets update gs://my-bucket \
+  --update-labels=backstage_io_owner-ref=platform-team
+```
+
+A resource with no such label — and every IAM service account, since those carry no labels at all —
+falls back to `owner` → `defaultOwner` → `unknown`. The `unknown` fallback is a valid ref, so the
+catalog still accepts the entities, and an obviously wrong one, so unlabelled resources are visible
+instead of silently misfiled. A label whose value is not a usable entity ref is logged and treated
+as absent, rather than emitting an entity the catalog would reject.
 
 ### Region
 

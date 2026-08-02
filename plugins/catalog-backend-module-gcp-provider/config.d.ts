@@ -9,11 +9,15 @@ interface GcpProviderCommonConfig {
   schedule: SchedulerServiceTaskScheduleDefinitionConfig;
 
   /**
-   * Entity ref set as `spec.owner` on the resources this provider emits, overriding
-   * `defaultOwner`. GCP exposes no ownership that maps onto a Backstage group, so nothing can be
-   * inferred; when neither key is set, entities are owned by `unknown`.
+   * Entity ref set as `spec.owner` on resources that carry no owner label, overriding
+   * `defaultOwner`. When neither key is set, such entities are owned by `unknown`.
    */
   owner?: string;
+
+  /**
+   * GCP label read off each resource to find its owner, overriding `ownerLabel`.
+   */
+  ownerLabel?: string;
 
   /**
    * Region recorded when the GCP API reports none for a resource, overriding `defaultRegion`.
@@ -28,6 +32,17 @@ export interface Config {
       gcp?: {
         /** Default for every provider's `owner`. Falls back to `unknown`. */
         defaultOwner?: string;
+
+        /**
+         * Default for every provider's `ownerLabel`: the GCP label whose value names the entity
+         * owning a resource. Falls back to `backstage.io/owner-ref`.
+         *
+         * GCP rejects label keys containing `.` or `/`, so the key is also matched with those
+         * folded to underscores — the default is readable as `backstage_io_owner-ref` on an actual
+         * resource. Values are restricted the same way, so they are usually a bare name such as
+         * `platform-team`, read as a group in the default namespace.
+         */
+        ownerLabel?: string;
 
         /** Default for every provider's `region`. Falls back to omitting the annotation. */
         defaultRegion?: string;

@@ -47,7 +47,7 @@ export class GcpBucketEntityProvider extends GcpEntityProviderBase<storage.Stora
         },
         spec: {
           type: 'bucket',
-          owner: this.defaultOwner,
+          owner: this.ownerOf(bucketLabels),
         },
       },
     };

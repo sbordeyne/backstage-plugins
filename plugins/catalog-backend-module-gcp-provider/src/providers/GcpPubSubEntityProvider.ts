@@ -65,7 +65,7 @@ export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub
         },
         spec: {
           type: 'pubsub-subscription',
-          owner: this.defaultOwner,
+          owner: this.ownerOf(subscription.metadata?.labels),
           dependsOn: [`resource:default/${topicName}`],
         },
       },
@@ -103,7 +103,7 @@ export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub
           },
           spec: {
             type: 'pubsub-topic',
-            owner: this.defaultOwner,
+            owner: this.ownerOf(topic.metadata?.labels),
             dependsOn: [...publisherResourceRefs],
           },
         },

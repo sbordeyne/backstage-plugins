@@ -51,7 +51,7 @@ export class GcpSecretEntityProvider extends GcpEntityProviderBase<secretManager
         },
         spec: {
           type: 'secret',
-          owner: this.defaultOwner,
+          owner: this.ownerOf(secret.labels),
         },
       },
     };
