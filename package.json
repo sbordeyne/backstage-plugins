@@ -28,7 +28,8 @@
     "new": "backstage-cli new --scope sbordeyne --no-private",
     "version:bump": "backstage-cli versions:bump",
     "release": "changeset version && yarn install --no-immutable",
-    "publish:all": "yarn workspaces foreach --all --no-private npm publish --access public"
+    "release:publish": "yarn build:all && yarn publish:all && yarn changeset tag",
+    "publish:all": "yarn workspaces foreach --all --topological --no-private npm publish --access public --tolerate-republish"
   },
   "resolutions": {
     "@types/react": "^18",
