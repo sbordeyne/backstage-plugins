@@ -1,7 +1,22 @@
 {
   "name": "@sbordeyne/bruno-report-type",
   "version": "0.1.0",
+  "description": "Shared TypeScript types for the Bruno report format, used by the Bruno Backstage frontend and backend plugins.",
   "license": "Apache-2.0",
+  "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/bruno/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sbordeyne/backstage-plugins.git",
+    "directory": "packages/bruno-report-type"
+  },
+  "bugs": "https://github.com/sbordeyne/backstage-plugins/issues",
+  "keywords": [
+    "backstage",
+    "backstage-plugin",
+    "bruno",
+    "api-testing",
+    "types"
+  ],
   "main": "src/index.ts",
   "types": "src/index.ts",
   "publishConfig": {

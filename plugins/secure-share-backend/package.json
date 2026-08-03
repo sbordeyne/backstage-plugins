@@ -1,7 +1,23 @@
 {
   "name": "@sbordeyne/backstage-plugin-secure-share-backend",
   "version": "0.1.0",
+  "description": "Backstage backend plugin storing ciphertext and wrapped keys for Secure Share; never sees a data key or plaintext.",
   "license": "Apache-2.0",
+  "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/secure-share/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sbordeyne/backstage-plugins.git",
+    "directory": "plugins/secure-share-backend"
+  },
+  "bugs": "https://github.com/sbordeyne/backstage-plugins/issues",
+  "keywords": [
+    "backstage",
+    "backstage-plugin",
+    "secrets",
+    "encryption",
+    "sharing",
+    "backend-plugin"
+  ],
   "main": "src/index.ts",
   "types": "src/index.ts",
   "publishConfig": {

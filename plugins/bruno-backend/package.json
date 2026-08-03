@@ -1,7 +1,22 @@
 {
   "name": "@sbordeyne/backstage-plugin-bruno-backend",
   "version": "0.1.0",
+  "description": "Backstage backend plugin syncing Bruno collection run reports from GitHub artifacts, S3 and Google Cloud Storage into the Backstage database.",
   "license": "Apache-2.0",
+  "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/bruno/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sbordeyne/backstage-plugins.git",
+    "directory": "plugins/bruno-backend"
+  },
+  "bugs": "https://github.com/sbordeyne/backstage-plugins/issues",
+  "keywords": [
+    "backstage",
+    "backstage-plugin",
+    "bruno",
+    "api-testing",
+    "backend-plugin"
+  ],
   "main": "src/index.ts",
   "types": "src/index.ts",
   "publishConfig": {

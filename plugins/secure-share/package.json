@@ -1,7 +1,23 @@
 {
   "name": "@sbordeyne/backstage-plugin-secure-share",
   "version": "0.1.0",
+  "description": "Backstage frontend plugin for short-lived, end-to-end encrypted sharing of credentials, text and files between users and groups.",
   "license": "Apache-2.0",
+  "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/secure-share/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sbordeyne/backstage-plugins.git",
+    "directory": "plugins/secure-share"
+  },
+  "bugs": "https://github.com/sbordeyne/backstage-plugins/issues",
+  "keywords": [
+    "backstage",
+    "backstage-plugin",
+    "secrets",
+    "encryption",
+    "sharing",
+    "frontend-plugin"
+  ],
   "main": "src/index.ts",
   "types": "src/index.ts",
   "publishConfig": {

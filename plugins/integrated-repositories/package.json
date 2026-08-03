@@ -1,7 +1,23 @@
 {
   "name": "@sbordeyne/backstage-plugin-integrated-repositories",
   "version": "0.1.0",
+  "description": "Backstage frontend plugin tracking how much of a GitHub organization the catalog covers, and turning the gap into a worklist.",
   "license": "Apache-2.0",
+  "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/integrated-repositories/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sbordeyne/backstage-plugins.git",
+    "directory": "plugins/integrated-repositories"
+  },
+  "bugs": "https://github.com/sbordeyne/backstage-plugins/issues",
+  "keywords": [
+    "backstage",
+    "backstage-plugin",
+    "catalog",
+    "github",
+    "coverage",
+    "frontend-plugin"
+  ],
   "main": "src/index.ts",
   "types": "src/index.ts",
   "repository": {

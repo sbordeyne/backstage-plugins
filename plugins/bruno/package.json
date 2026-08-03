@@ -1,7 +1,22 @@
 {
   "name": "@sbordeyne/backstage-plugin-bruno",
   "version": "0.1.0",
+  "description": "Backstage frontend plugin surfacing Bruno collection runs on the entity that owns them, with a pass/fail history chart and per-request results.",
   "license": "Apache-2.0",
+  "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/bruno/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sbordeyne/backstage-plugins.git",
+    "directory": "plugins/bruno"
+  },
+  "bugs": "https://github.com/sbordeyne/backstage-plugins/issues",
+  "keywords": [
+    "backstage",
+    "backstage-plugin",
+    "bruno",
+    "api-testing",
+    "frontend-plugin"
+  ],
   "main": "src/index.ts",
   "types": "src/index.ts",
   "publishConfig": {
