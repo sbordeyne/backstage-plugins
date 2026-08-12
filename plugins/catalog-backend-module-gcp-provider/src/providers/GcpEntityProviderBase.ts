@@ -107,6 +107,48 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
     return this.config.getOptionalString('region') ?? this.gcpConfig.getOptionalString('defaultRegion');
   }
 
+  /**
+   * Access token for the GCP API, fetched from the metadata server when running on GCP.
+   *
+   * This is used when no service account credentials are configured, which is the case when
+   * running on GCP with a service account attached to the instance. The token is short-lived and
+   * automatically refreshed by the GCP client libraries, so it is only fetched once per provider
+   * instantiation.
+   */
+  protected async getAccessToken(): Promise<string> {
+    const boundServiceAccountsResponse = await fetch({
+      method: 'GET',
+      url: 'metadata.google.internal/computeMetadata/v1/instance/service-accounts/',
+      headers: {
+        // @ts-ignore
+        'Metadata-Flavor': 'Google',
+      },
+    });
+    const boundServiceAccounts = await boundServiceAccountsResponse.text();
+    let serviceAccountEmail: string | undefined;
+    boundServiceAccounts.split('\n').forEach(account => {
+      if (account.includes('@')) {
+        serviceAccountEmail = account.trim();
+      }
+    });
+    if (!serviceAccountEmail) {
+      throw new Error('No service account found in the metadata server');
+    }
+    const accessTokenResponse = await fetch({
+      method: 'GET',
+      url: `metadata.google.internal/computeMetadata/v1/instance/service-accounts/${serviceAccountEmail}/token`,
+      headers: {
+        // @ts-ignore
+        'Metadata-Flavor': 'Google',
+      },
+    });
+    const accessTokenData = await accessTokenResponse.json();
+    if (!accessTokenData.access_token) {
+      throw new Error('No access token found in the metadata server response');
+    }
+    return accessTokenData.access_token;
+  }
+
   abstract getProviderName(): string;
 
   abstract getProviderConfigKey(): string;
