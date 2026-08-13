@@ -1,6 +1,6 @@
 {
   "name": "@sbordeyne/plugin-catalog-backend-module-gcp-provider",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "Apache-2.0",
   "description": "The gcp-provider backend module for the catalog plugin.",
   "main": "src/index.ts",
