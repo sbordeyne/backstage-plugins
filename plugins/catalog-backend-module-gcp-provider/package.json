@@ -21,7 +21,7 @@
     "lint": "backstage-cli package lint",
     "test": "backstage-cli package test",
     "clean": "backstage-cli package clean",
-    "prepack": "yarn workspace root run tsc && backstage-cli package build && backstage-cli package prepack",
+    "prepack": "tsc -p tsconfig.pack.json && backstage-cli package build && backstage-cli package prepack",
     "postpack": "backstage-cli package postpack"
   },
   "dependencies": {

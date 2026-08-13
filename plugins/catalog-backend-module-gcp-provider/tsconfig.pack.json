@@ -1,0 +1,13 @@
+{
+  "//": [
+    "Declarations for this package alone, emitted where `backstage-cli package build` looks for",
+    "them. The root tsconfig compiles every workspace at once, which is what `yarn tsc` is for but",
+    "far more than packing one package needs — a consumer installing this package from git runs",
+    "prepack inside a container, where compiling the whole monorepo exhausts the default heap.",
+    "Paths in `compilerOptions` are inherited from the root config and stay relative to it, so",
+    "`outDir` and `rootDir` still resolve to the repo root."
+  ],
+  "extends": "../../tsconfig.json",
+  "include": ["src", "config.d.ts"],
+  "exclude": ["node_modules", "src/**/*.test.ts"]
+}
