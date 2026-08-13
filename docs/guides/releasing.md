@@ -15,47 +15,73 @@ maintain.
 
 ## What the workflow does
 
-1. **Verifies the whole repo** — `yarn tsc`, `yarn lint:all`, `yarn prettier:check`, `yarn test`,
-   then `yarn build:all`. A broken package is worse than a late one, so nothing is published until
-   all of that passes.
-2. **Works out what to release** by asking the npm registry for each public workspace's current
-   version. Anything the registry answers `404` for is released.
-3. **Publishes** with `yarn workspace <name> npm publish --access public --tolerate-republish`.
-4. **Tags** `<package-name>-<version>`, with the npm scope stripped — the
+Three jobs:
+
+| Job        | Scope       | What                                                                    |
+| ---------- | ----------- | ----------------------------------------------------------------------- |
+| `discover` | repo        | Asks npm which workspace versions are unreleased, and builds the matrix |
+| `verify`   | repo        | `yarn tsc`, `yarn lint:all`, `yarn prettier:check`, `yarn test`         |
+| `release`  | **package** | One matrix job per package being released                               |
+
+`verify` is repo-wide because those checks are: the repo shares a single `tsconfig.json`, and
+formatting covers docs and workflows as well as source. Nothing reaches npm until it passes — a
+broken package is worse than a late one.
+
+Each release job then, for its own package:
+
+1. **Builds and packs** it with `yarn`. Yarn does the packing because it is the only tool here that
+   resolves the `backstage:` protocol into real semver ranges; `npm publish` on the source directory
+   would ship `backstage:^` verbatim, which nobody can install. `prepack` also needs the build,
+   since it rewrites the manifest to point at `dist/`.
+2. **Publishes the tarball** with `npm publish`, authenticating through
+   [trusted publishing](#trusted-publishing).
+3. **Tags** `<package-name>-<version>`, with the npm scope stripped — the
    `@sbordeyne/plugin-catalog-backend-module-gcp-provider` package at `0.2.0` is tagged
    `plugin-catalog-backend-module-gcp-provider-0.2.0`.
-5. **Creates a GitHub release** on that tag, with notes listing the commits that touched that
+4. **Creates a GitHub release** on that tag, with notes listing the commits that touched that
    package's directory since its previous tag.
 
+The matrix runs with `fail-fast: false`: one package failing to publish says nothing about the
+others, and a package whose trusted publisher is not configured yet should not hold up the rest.
+
 The registry, rather than the diff of the push, decides what to release. That matters: a re-run, a
-squashed merge, or a run that failed halfway through thirteen packages all reach the same answer,
-and a version that is already on npm is never republished.
+squashed merge, or a run where one package's publish failed all reach the same answer, and a version
+already on npm is never republished.
 
-## Setup
+## Trusted publishing
 
-One repository secret is required:
+There is **no npm token anywhere**. Each package is configured on npm with a trusted publisher
+pointing at this repository and at `.github/workflows/release.yaml`, and npm exchanges the
+workflow's OIDC token for a short-lived publish credential. Provenance is generated as part of that.
 
-| Secret      | What                                                                   |
-| ----------- | ---------------------------------------------------------------------- |
-| `NPM_TOKEN` | npm **automation** token with publish rights on the `@sbordeyne` scope |
+Three things have to hold, or publishing fails:
 
-Automation tokens bypass 2FA, which a granular or classic token does not — a publish from CI with
-2FA enforced on the account fails without one. The workflow needs no other secret; tags and releases
-use the `GITHUB_TOKEN` that Actions provides, which is why the job declares `contents: write`.
+- The release job declares `id-token: write`. Without it there is no OIDC token to exchange.
+- The workflow file stays at `.github/workflows/release.yaml`. The trusted publisher is bound to
+  that filename, so renaming or moving the workflow breaks publishing for every package.
+- The npm CLI is at least 11.5.1, which is the first version that can do the exchange. The job
+  installs a current npm rather than using the one bundled with Node.
+
+A new package needs its trusted publisher configured on npm before its first release; until then its
+matrix job fails on authentication while the others publish normally.
+
+Tags and GitHub releases use the `GITHUB_TOKEN` Actions provides, which is why the job also declares
+`contents: write`.
 
 ## Checking before releasing
 
-The workflow can be run from the Actions tab with **dry run** ticked. It performs every check and
-then lists what it would publish and which tags it would create, without touching npm or the
-repository.
+The workflow can be run from the Actions tab with **dry run** ticked. `discover` still lists what it
+would publish, and which tags it would create, in the run summary — the release jobs are skipped.
 
 ## When something goes wrong
 
-**A package published but the tag is missing.** Re-run the workflow. The publish is skipped
-(`--tolerate-republish`), and the tag and release are created on the second pass.
+**A package published but the tag is missing.** Re-run the failed job. `discover` no longer lists
+that package — it is on npm now — so re-run the whole workflow only after bumping, or create the tag
+by hand as below.
 
-**One package fails, others succeed.** Each package is published, tagged and released
-independently; the job reports the failure at the end but does not abandon the rest.
+**One package fails, others succeed.** Each package has its own matrix job, so the rest carry on and
+only the failed one needs looking at. A failure on `npm publish` with an authentication error means
+that package has no trusted publisher configured yet.
 
 **The registry did not answer.** The run fails at the detection step rather than guessing. Nothing
 is published — re-run it.

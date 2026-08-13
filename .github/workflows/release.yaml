@@ -5,8 +5,7 @@ on:
     branches:
       - master
     paths:
-      - packages/bruno-report-type/package.json
-      - packages/secure-share-common/package.json
+      - packages/*/package.json
       - plugins/*/package.json
       - .github/workflows/release.yaml
   workflow_dispatch:
@@ -16,37 +15,100 @@ on:
         type: boolean
         default: false
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  # Never cancel a release in flight: a cancelled run can leave a package published
-  # on npm with no tag and no release to go with it.
+  # Never cancel a release in flight: a cancelled run can leave a package published on npm
+  # with no tag and no release to go with it.
   group: release
   cancel-in-progress: false
 jobs:
-  release:
-    name: Publish bumped packages
+  discover:
+    name: Find bumped packages
     runs-on: ubuntu-latest
+    outputs:
+      releases: ${{ steps.matrix.outputs.releases }}
+      count: ${{ steps.matrix.outputs.count }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Tags are read to work out what changed since each package's last release.
-          fetch-depth: 0
-
-      - name: Set up mise
-        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
-        with:
-          install: true
 
       - name: Enable corepack
         run: corepack enable
 
+      # The npm registry, rather than the diff of this push, decides what is unreleased: a
+      # re-run, a squashed merge or a run where one package failed all reach the same answer.
+      - name: Build the release matrix
+        id: matrix
+        env:
+          REGISTRY: https://registry.npmjs.org
+        run: |
+          set -euo pipefail
+          releases='[]'
+
+          for dir in $(yarn workspaces list --json | jq -r 'select(.location != ".") | .location'); do
+            manifest="${dir}/package.json"
+            name=$(jq -r '.name' "${manifest}")
+            version=$(jq -r '.version' "${manifest}")
+
+            if [ "$(jq -r '.private // false' "${manifest}")" = "true" ]; then
+              continue
+            fi
+
+            # Asking the registry directly keeps "not published" (404) apart from "the
+            # registry did not answer"; guessing on a transient error would mean trying to
+            # republish the whole monorepo.
+            encoded=$(jq -rn --arg name "${name}" '$name|@uri')
+            status=$(curl -sS -o /dev/null -w '%{http_code}' "${REGISTRY}/${encoded}/${version}")
+
+            case "${status}" in
+              200)
+                echo "already released: ${name}@${version}"
+                ;;
+              404)
+                echo "to release:       ${name}@${version}"
+                releases=$(jq -c \
+                  --arg n "${name}" --arg d "${dir}" --arg v "${version}" --arg t "${name#@*/}-${version}" \
+                  '. + [{name: $n, dir: $d, version: $v, tag: $t}]' <<< "${releases}")
+                ;;
+              *)
+                echo "::error::registry answered ${status} for ${name}@${version}"
+                exit 1
+                ;;
+            esac
+          done
+
+          {
+            echo "releases=${releases}"
+            echo "count=$(jq length <<< "${releases}")"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "$(jq length <<< "${releases}")" = "0" ]; then
+            echo "Nothing to release." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### To release" >> "$GITHUB_STEP_SUMMARY"
+            jq -r '.[] | "- `\(.name)@\(.version)` as tag `\(.tag)`"' <<< "${releases}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  verify:
+    name: Verify
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up mise
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install: true
+      - name: Enable corepack
+        run: corepack enable
       - name: Install dependencies
         run: yarn install --immutable
 
-      # A broken package is worse than a late one, so the whole repo is verified before
-      # anything reaches npm. `lint:all` rather than `lint`, which diffs against
-      # origin/master and so checks nothing when running on master.
+      # A broken package is worse than a late one, so the repo is verified before anything
+      # reaches npm. `lint:all` rather than `lint`, which diffs against origin/master and so
+      # checks nothing when running on master.
       - name: Typecheck
         run: yarn tsc
       - name: Lint
@@ -58,145 +120,116 @@ jobs:
         env:
           CI: 'true'
 
-      # `prepack` rewrites each manifest to point at dist/, so publishing without building
-      # first ships a package whose entry points do not exist.
-      - name: Build
-        run: yarn build:all
+  release:
+    name: ${{ matrix.package.name }}
+    needs: [discover, verify]
+    if: needs.discover.outputs.count != '0' && inputs.dry_run != true
+    runs-on: ubuntu-latest
+    permissions:
+      # Tags and GitHub releases.
+      contents: write
+      # The OIDC token npm exchanges for a short-lived publish credential. Without it
+      # trusted publishing cannot work, and npm falls back to asking for a token.
+      id-token: write
+    strategy:
+      # One package failing to publish says nothing about the others, and a package whose
+      # trusted publisher is not configured yet should not hold up the rest.
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.discover.outputs.releases) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Tags are read to work out what changed since this package's last release.
+          fetch-depth: 0
+      - name: Set up mise
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install: true
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: yarn install --immutable
 
-      # The npm registry is the source of truth for what has been released, rather than
-      # the diff of this push: a re-run, a squashed merge or a run that failed halfway
-      # then all reach the same answer.
-      - name: Find packages to release
-        id: find
+      - name: Publish to npm
         env:
-          REGISTRY: https://registry.npmjs.org
+          PACKAGE: ${{ matrix.package.name }}
         run: |
           set -euo pipefail
-          : > releases.txt
-          for dir in $(yarn workspaces list --json | jq -r 'select(.location != ".") | .location'); do
-            manifest="${dir}/package.json"
-            name=$(jq -r '.name' "${manifest}")
-            version=$(jq -r '.version' "${manifest}")
-            private=$(jq -r '.private // false' "${manifest}")
 
-            if [ "${private}" = "true" ]; then
-              continue
-            fi
+          # Trusted publishing is an npm CLI feature: it exchanges this job's OIDC token for
+          # a short-lived credential. 11.5.1 is the first release that can, and the Node
+          # distribution ships an older one.
+          npm install -g npm@latest
+          npm --version
 
-            # The registry is asked directly rather than through a client, so that "not
-            # published" (404) is told apart from "the registry did not answer". Guessing
-            # on a transient error would mean attempting to republish the whole monorepo.
-            encoded=$(jq -rn --arg name "${name}" '$name|@uri')
-            status=$(curl -sS -o /dev/null -w '%{http_code}' "${REGISTRY}/${encoded}/${version}")
+          # yarn does the packing because it is the only tool here that resolves the
+          # `backstage:` protocol into real semver ranges — npm would publish `backstage:^`
+          # verbatim and ship a package nobody can install. `prepack` also needs the build,
+          # since it rewrites the manifest to point at dist/.
+          yarn workspace "${PACKAGE}" build
+          yarn workspace "${PACKAGE}" pack --out "${RUNNER_TEMP}/package.tgz"
 
-            case "${status}" in
-              200)
-                echo "already released: ${name}@${version}"
-                ;;
-              404)
-                echo "to release:       ${name}@${version}"
-                printf '%s\t%s\t%s\n' "${name}" "${version}" "${dir}" >> releases.txt
-                ;;
-              *)
-                echo "::error::registry answered ${status} for ${name}@${version}"
-                exit 1
-                ;;
-            esac
-          done
+          # No token in the environment on purpose: npm uses the OIDC exchange, and
+          # provenance comes with it.
+          npm publish "${RUNNER_TEMP}/package.tgz" --access public
 
-          count=$(wc -l < releases.txt | tr -d ' ')
-          echo "count=${count}" >> "$GITHUB_OUTPUT"
-          if [ "${count}" = "0" ]; then
-            echo "No package versions to release." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Configure git identity
-        if: steps.find.outputs.count != '0' && inputs.dry_run != true
+      - name: Tag
+        env:
+          TAG: ${{ matrix.package.tag }}
+          PACKAGE: ${{ matrix.package.name }}
+          VERSION: ${{ matrix.package.version }}
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Publish, tag and release
-        if: steps.find.outputs.count != '0' && inputs.dry_run != true
+          # Tagged only once the package is on npm, so a tag always means a released version
+          # rather than an attempted one.
+          if git rev-parse -q --verify "refs/tags/${TAG}" > /dev/null; then
+            echo "tag ${TAG} already exists"
+          else
+            git tag -a "${TAG}" -m "${PACKAGE} v${VERSION}"
+            git push origin "refs/tags/${TAG}"
+          fi
+
+      - name: Create GitHub release
         env:
-          # Yarn reads the npm credential from this variable; the secret itself is an
-          # npm automation token with publish rights on the @sbordeyne scope.
-          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ github.token }}
-          RELEASES_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag
-        run: |
-          set -uo pipefail
-          failed=0
-
-          while IFS=$'\t' read -r name version dir <&3; do
-            # Tags drop the npm scope: every package here shares one, and `@scope/name`
-            # in a ref makes for an awkward tag.
-            tag="${name#@*/}-${version}"
-            echo "::group::${name}@${version}"
-
-            if ! yarn workspace "${name}" npm publish --access public --tolerate-republish; then
-              echo "::error::failed to publish ${name}@${version}"
-              failed=1
-              echo "::endgroup::"
-              continue
-            fi
-
-            # Notes are the commits touching this package since its own last release,
-            # which in a monorepo is far more useful than the repo-wide history. The
-            # previous tag is found before this one is created, so it finds the right one.
-            previous=$(git tag --list "${name#@*/}-*" --sort=-v:refname | grep -v "^${tag}$" | head -n 1 || true)
-            range="${previous:+${previous}..}HEAD"
-            changes=$(git log --no-merges --format='- %s (%h)' "${range}" -- "${dir}")
-            {
-              echo "\`${name}@${version}\` is on npm:"
-              echo
-              echo "\`\`\`bash"
-              echo "yarn add ${name}@${version}"
-              echo "\`\`\`"
-              echo
-              echo "### Changes"
-              echo
-              if [ -z "${changes}" ]; then
-                echo "- Initial release"
-              else
-                echo "${changes}" | head -n 50
-                if [ "$(echo "${changes}" | wc -l)" -gt 50 ]; then
-                  echo "- …and more, see the full history"
-                fi
-              fi
-            } > notes.md
-
-            # The tag is only created once the package is on npm, so a tag always means a
-            # released version rather than an attempted one.
-            if git rev-parse -q --verify "refs/tags/${tag}" > /dev/null; then
-              echo "tag ${tag} already exists"
-            elif git tag -a "${tag}" -m "${name} v${version}" && git push origin "refs/tags/${tag}"; then
-              echo "tagged ${tag}"
-            else
-              echo "::error::failed to tag ${tag}"
-              failed=1
-              echo "::endgroup::"
-              continue
-            fi
-
-            if gh release view "${tag}" > /dev/null 2>&1; then
-              echo "release ${tag} already exists"
-            elif ! gh release create "${tag}" --title "${name} v${version}" --notes-file notes.md; then
-              echo "::error::failed to create release for ${tag}"
-              failed=1
-            fi
-
-            echo "- \`${name}@${version}\` → [\`${tag}\`](${RELEASES_URL}/${tag})" >> "$GITHUB_STEP_SUMMARY"
-            echo "::endgroup::"
-          done 3< releases.txt
-
-          exit "${failed}"
-
-      - name: Report dry run
-        if: steps.find.outputs.count != '0' && inputs.dry_run == true
+          TAG: ${{ matrix.package.tag }}
+          PACKAGE: ${{ matrix.package.name }}
+          VERSION: ${{ matrix.package.version }}
+          DIR: ${{ matrix.package.dir }}
         run: |
           set -euo pipefail
-          echo "### Would release" >> "$GITHUB_STEP_SUMMARY"
-          while IFS=$'\t' read -r name version dir <&3; do
-            echo "- \`${name}@${version}\` as tag \`${name#@*/}-${version}\`" >> "$GITHUB_STEP_SUMMARY"
-          done 3< releases.txt
+
+          # Notes are the commits touching this package since its own last release, which in
+          # a monorepo is far more useful than the repo-wide history.
+          previous=$(git tag --list "${PACKAGE#@*/}-*" --sort=-v:refname | grep -v "^${TAG}$" | head -n 1 || true)
+          range="${previous:+${previous}..}HEAD"
+          changes=$(git log --no-merges --format='- %s (%h)' "${range}" -- "${DIR}")
+          {
+            echo "\`${PACKAGE}@${VERSION}\` is on npm:"
+            echo
+            echo "\`\`\`bash"
+            echo "yarn add ${PACKAGE}@${VERSION}"
+            echo "\`\`\`"
+            echo
+            echo "### Changes"
+            echo
+            if [ -z "${changes}" ]; then
+              echo "- Initial release"
+            else
+              echo "${changes}" | head -n 50
+              if [ "$(echo "${changes}" | wc -l)" -gt 50 ]; then
+                echo "- …and more, see the full history"
+              fi
+            fi
+          } > "${RUNNER_TEMP}/notes.md"
+
+          if gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "release ${TAG} already exists"
+          else
+            gh release create "${TAG}" --title "${PACKAGE} v${VERSION}" --notes-file "${RUNNER_TEMP}/notes.md"
+          fi
