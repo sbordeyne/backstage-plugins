@@ -41,4 +41,72 @@ describe('catalogModuleGcpProvider', () => {
     };
     await expect(registeredProviders(gcp)).resolves.toEqual(['gcp-bigquery', 'gcp-bucket']);
   });
+
+  it('registers a provider for every config key it documents', async () => {
+    // One block per key, so a provider added to PROVIDERS without a config key — or the reverse —
+    // shows up here rather than in a silently missing resource type.
+    const keys = [
+      'service-account',
+      'bigquery',
+      'pubsub',
+      'cloudsql',
+      'storage',
+      'secretmanager',
+      'clusters',
+      'workload-identity',
+      'iam-roles',
+      'vpc',
+      'subnets',
+      'firewall',
+      'routers',
+      'dns',
+      'instances',
+      'instance-groups',
+      'images',
+      'spanner',
+      'redis',
+      'alloydb',
+      'bigtable',
+      'firestore',
+      'managedkafka',
+      'eventarc',
+      'cloudtasks',
+      'scheduler',
+      'run',
+      'functions',
+      'artifactregistry',
+      'loadbalancers',
+      'sslcertificates',
+      'armor',
+      'addresses',
+      'vpn',
+      'cloudbuild',
+      'clouddeploy',
+      'workflows',
+      'composer',
+      'dataproc',
+      'kms',
+      'certificatemanager',
+      'binaryauthorization',
+      'alerts',
+      'slos',
+      'logsinks',
+      'filestore',
+      'vpcconnectors',
+      'memcache',
+      'appengine',
+      'disks',
+      'bqtransfers',
+      'bqreservations',
+      'analyticshub',
+      'datastream',
+      'dataplex',
+      'dataflow',
+      'vertex',
+      'workbench',
+    ];
+    const gcp = Object.fromEntries(keys.map(key => [key, { projects: ['p'], schedule }]));
+
+    await expect(registeredProviders(gcp)).resolves.toHaveLength(keys.length);
+  });
 });

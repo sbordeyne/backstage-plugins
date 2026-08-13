@@ -1,9 +1,8 @@
-import { ANNOTATION_GCP_PROJECT_ID, ANNOTATION_GCP_SERVICE_ACCOUNT } from '../constants';
 import { GcpEntityProviderBase } from './GcpEntityProviderBase';
 import * as secretManager from '@google-cloud/secret-manager';
 import { DeferredEntity } from '@backstage/plugin-catalog-node';
 import { ANNOTATION_LOCATION, ANNOTATION_ORIGIN_LOCATION } from '@backstage/catalog-model';
-import { formatResourceName } from '../utils';
+import { apiSelfLink, lastSegment } from '../utils';
 
 export class GcpSecretEntityProvider extends GcpEntityProviderBase<secretManager.SecretManagerServiceClient> {
   getProviderName(): string {
@@ -26,32 +25,36 @@ export class GcpSecretEntityProvider extends GcpEntityProviderBase<secretManager
       return undefined;
     }
     const location = `${this.getProviderName()}:${secret.name}`;
-    const [iamPolicyResponse] = await this.client.getIamPolicy({ resource: secret.name });
+    const secretId = lastSegment(secret.name);
+    // Who can read the secret comes from the shared IAM index now, rather than a getIamPolicy call
+    // per secret: it is the same information, without one round trip per resource.
     const annotations: Record<string, string> = {
       [ANNOTATION_LOCATION]: location,
       [ANNOTATION_ORIGIN_LOCATION]: location,
-      [ANNOTATION_GCP_PROJECT_ID]: projectId,
     };
-    if (iamPolicyResponse.bindings) {
-      annotations[ANNOTATION_GCP_SERVICE_ACCOUNT] =
-        iamPolicyResponse.bindings.map(binding => binding.members?.join(',')).join(',') || '';
-    }
     return {
       entity: {
         apiVersion: 'backstage.io/v1alpha1',
         kind: 'Resource',
-        metadata: {
-          name: formatResourceName(secret.name.split('/').pop()!),
-          annotations: {
-            [ANNOTATION_LOCATION]: location,
-            [ANNOTATION_ORIGIN_LOCATION]: location,
-            [ANNOTATION_GCP_PROJECT_ID]: projectId,
-          },
-          namespace: 'secrets',
-        },
+        metadata: this.metadataOf({
+          name: secretId,
+          projectId,
+          type: 'secret',
+          // Secret Manager reports no self link, so the canonical REST URL of the resource stands
+          // in for one — it is the same thing the API would have returned.
+          selfLink: apiSelfLink('secretmanager.googleapis.com', 'v1', secret.name),
+          labels: secret.labels,
+          summary: `Secret Manager secret, ${
+            secret.replication?.automatic ? 'automatically replicated' : 'replicated to selected regions'
+          }`,
+          consolePath: `security/secret-manager/secret/${secretId}/versions`,
+          logFilter: `resource.type="secretmanager.googleapis.com/Secret" resource.labels.secret_id="${secretId}"`,
+          annotations,
+        }),
         spec: {
           type: 'secret',
           owner: this.ownerOf(secret.labels),
+          ...this.systemOf(secret.labels),
         },
       },
     };

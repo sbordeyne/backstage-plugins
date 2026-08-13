@@ -9,7 +9,7 @@ import {
   ANNOTATION_KUBERNETES_DASHBOARD_APP,
   ANNOTATION_KUBERNETES_DASHBOARD_PARAMETERS,
 } from '@backstage/plugin-kubernetes-common';
-import { formatResourceName } from '../utils';
+import { regionOf } from '../utils';
 
 export class GcpClustersEntityProvider extends GcpEntityProviderBase<container.ClusterManagerClient> {
   getProviderName(): string {
@@ -43,7 +43,24 @@ export class GcpClustersEntityProvider extends GcpEntityProviderBase<container.C
       entity: {
         apiVersion: 'backstage.io/v1alpha1',
         kind: 'Resource',
-        metadata: {
+        metadata: this.metadataOf({
+          name: cluster.name,
+          projectId: project,
+          type: 'kubernetes-cluster',
+          region: cluster.location,
+          selfLink: cluster.selfLink,
+          labels: cluster.resourceLabels,
+          description: cluster.description,
+          summary: `GKE cluster running ${cluster.currentMasterVersion ?? 'an unreported version'} in ${
+            cluster.location
+          }`,
+          consolePath: `kubernetes/clusters/details/${cluster.location}/${cluster.name}`,
+          logFilter: `resource.type="k8s_cluster" resource.labels.cluster_name="${cluster.name}"`,
+          tagValues: [
+            typeof cluster.status === 'string' ? cluster.status : undefined,
+            cluster.currentMasterVersion,
+            cluster.autopilot?.enabled ? 'autopilot' : 'standard',
+          ],
           annotations: {
             [ANNOTATION_KUBERNETES_API_SERVER]: `https://${
               cluster.controlPlaneEndpointsConfig?.dnsEndpointConfig?.endpoint || cluster.endpoint
@@ -59,12 +76,29 @@ export class GcpClustersEntityProvider extends GcpEntityProviderBase<container.C
               clusterName: cluster.name,
             }),
           },
-          name: formatResourceName(cluster.name),
-          namespace: 'clusters',
-        },
+        }),
         spec: {
           type: 'kubernetes-cluster',
           owner: this.ownerOf(cluster.resourceLabels),
+          ...this.systemOf(cluster.resourceLabels),
+          // A cluster is only reachable through the network it sits in, and its nodes only in the
+          // subnet, so both are dependencies rather than details.
+          dependsOn: [
+            ...(cluster.network ? [this.vpcRef(cluster.network, project)] : []),
+            ...(cluster.subnetwork
+              ? [
+                  this.resourceRef('subnets', {
+                    projectId: project,
+                    type: 'subnetwork',
+                    provider: 'gcp-subnets',
+                    region: cluster.location,
+                    // GKE names the network and subnet bare rather than by URL, and a subnet
+                    // entity carries its region.
+                    name: `${cluster.subnetwork}-${regionOf(cluster.location)}`,
+                  }),
+                ]
+              : []),
+          ],
         },
       },
     };

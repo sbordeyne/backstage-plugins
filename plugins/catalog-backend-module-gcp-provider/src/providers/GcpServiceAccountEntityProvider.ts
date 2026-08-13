@@ -1,11 +1,24 @@
-import { ANNOTATION_GCP_PROJECT_ID, ANNOTATION_GCP_SERVICE_ACCOUNT } from '../constants';
-import { GcpEntityProviderBase } from './GcpEntityProviderBase';
+import {
+  ANNOTATION_GCP_IAM_ACCESS,
+  ANNOTATION_GCP_IAM_PROJECT_ROLES,
+  ANNOTATION_GCP_IAM_ROLES,
+  ANNOTATION_GCP_SERVICE_ACCOUNT,
+} from '../constants';
+import { GcpRestEntityProvider } from './GcpRestEntityProvider';
 import { google, iam_v1 } from 'googleapis';
 import { DeferredEntity } from '@backstage/plugin-catalog-node';
-import { ANNOTATION_LOCATION, ANNOTATION_ORIGIN_LOCATION } from '@backstage/catalog-model';
-import { formatResourceName } from '../utils';
+import { GcpIamGrant, GcpProjectPolicies } from '../iam';
+import { apiSelfLink, lastSegment, truncateAnnotation } from '../utils';
 
-export class GcpServiceAccountEntityProvider extends GcpEntityProviderBase<iam_v1.Iam> {
+/**
+ * IAM service accounts, and the resources they can reach.
+ *
+ * This provider is where the catalog stops being an inventory and becomes a graph. A service
+ * account's grants are turned into `dependsOn` relations, and because the catalog derives the
+ * reverse relation automatically, the database, secret and topic behind a service account each gain
+ * their `dependencyOf` edge without their own providers doing anything.
+ */
+export class GcpServiceAccountEntityProvider extends GcpRestEntityProvider<iam_v1.Iam> {
   getProviderName(): string {
     return 'gcp-service-account';
   }
@@ -15,64 +28,114 @@ export class GcpServiceAccountEntityProvider extends GcpEntityProviderBase<iam_v
   }
 
   getClient(): iam_v1.Iam {
-    if (!this.credentials) {
-      return google.iam({ version: 'v1' });
-    }
-    const jwtClient = new google.auth.JWT({
-      ...this.credentials,
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    });
-    const iam = google.iam({ auth: jwtClient, version: 'v1' });
-    return iam;
+    // `googleAuth` already resolves the key file, ADC, Workload Identity or the metadata server,
+    // so there is no separate branch for running with and without configured credentials.
+    return google.iam({ version: 'v1', auth: this.googleAuth });
   }
 
-  private async serviceAccountToResource(account: iam_v1.Schema$ServiceAccount): Promise<DeferredEntity | undefined> {
+  /** Every grant this account holds, across every configured project's policies. */
+  private grantsOf(email: string, policies: Map<string, GcpProjectPolicies>): GcpIamGrant[] {
+    const member = `serviceAccount:${email}`;
+    const grants: GcpIamGrant[] = [];
+    for (const projectPolicies of policies.values()) {
+      grants.push(...(projectPolicies.grantsByMember.get(member) ?? []));
+    }
+    return grants.filter(grant => this.iamRoleWanted(grant.role));
+  }
+
+  /** Roles this account holds at project level, which grant access without naming a resource. */
+  private projectRolesOf(email: string, policies: Map<string, GcpProjectPolicies>): string[] {
+    const member = `serviceAccount:${email}`;
+    const roles = new Set<string>();
+    for (const projectPolicies of policies.values()) {
+      for (const role of projectPolicies.projectRolesByMember.get(member) ?? []) {
+        roles.add(role);
+      }
+    }
+    return [...roles];
+  }
+
+  private serviceAccountToResource(
+    account: iam_v1.Schema$ServiceAccount,
+    project: string,
+    policies: Map<string, GcpProjectPolicies>,
+  ): DeferredEntity | undefined {
     if (!account.email || !account.name) {
       return undefined;
     }
-    const location = `${this.getProviderName()}:${account.name}`;
-    const annotations: Record<string, string> = {
-      [ANNOTATION_LOCATION]: location,
-      [ANNOTATION_ORIGIN_LOCATION]: location,
-      [ANNOTATION_GCP_PROJECT_ID]: account.projectId ?? '',
-      [ANNOTATION_GCP_SERVICE_ACCOUNT]: account.email,
-    };
+    const projectId = account.projectId ?? project;
+    const grants = this.grantsOf(account.email, policies);
+    const projectRoles = this.projectRolesOf(account.email, policies);
+
+    // One relation per resource, however many roles are held on it, capped so a broadly-granted
+    // account cannot bury its own entity page.
+    const refs = new Map<string, string[]>();
+    for (const grant of grants) {
+      const ref = this.refForAsset(grant.assetName, grant.assetType, projectId);
+      if (!ref || refs.size >= this.iamOptions.maxEdges) {
+        continue;
+      }
+      refs.set(ref, [...(refs.get(ref) ?? []), grant.role]);
+    }
+
+    const roles = [...new Set(grants.map(grant => grant.role))];
+    const access = grants
+      .map(grant => `${lastSegment(grant.assetName)}=${grant.role}`)
+      .filter((entry, index, all) => all.indexOf(entry) === index)
+      .join(';');
 
     const name = account.name.split('/').pop()!.split('@')[0];
 
-    return {
-      entity: {
-        apiVersion: 'backstage.io/v1alpha1',
-        kind: 'Resource',
-        metadata: {
-          name: formatResourceName(name),
-          title: account.displayName || account.name,
-          annotations,
-          namespace: 'service-accounts',
-        },
-        spec: {
-          // IAM service accounts carry no labels, so there is nothing to read an owner from and
-          // these entities always fall back to the configured owner.
-          type: 'google-service-account',
-          owner: this.defaultOwner,
+    return this.toEntity(
+      {
+        name,
+        projectId,
+        type: 'google-service-account',
+        title: account.displayName || account.name,
+        description: account.description,
+        summary: grants.length
+          ? `IAM service account ${account.email}, with access to ${refs.size} catalogued resource(s)`
+          : `IAM service account ${account.email}`,
+        // The IAM API reports no self link, so the canonical REST URL of the account stands in.
+        selfLink: apiSelfLink('iam.googleapis.com', 'v1', account.name),
+        assetName: `//iam.googleapis.com/projects/${projectId}/serviceAccounts/${account.email}`,
+        // The console addresses accounts by their numeric id, not their email.
+        consolePath: account.uniqueId
+          ? `iam-admin/serviceaccounts/details/${account.uniqueId}`
+          : 'iam-admin/serviceaccounts',
+        logFilter: `protoPayload.authenticationInfo.principalEmail="${account.email}"`,
+        tagValues: [account.disabled ? 'disabled' : 'enabled'],
+        annotations: {
+          [ANNOTATION_GCP_SERVICE_ACCOUNT]: account.email,
+          ...(roles.length ? { [ANNOTATION_GCP_IAM_ROLES]: truncateAnnotation(roles.join(',')) } : {}),
+          ...(access ? { [ANNOTATION_GCP_IAM_ACCESS]: truncateAnnotation(access) } : {}),
+          // Project-level roles grant access to everything in the project without naming a
+          // resource, so they cannot become edges. Recording them keeps that access visible.
+          ...(projectRoles.length
+            ? { [ANNOTATION_GCP_IAM_PROJECT_ROLES]: truncateAnnotation(projectRoles.join(',')) }
+            : {}),
         },
       },
-    };
+      { dependsOn: [...refs.keys()] },
+    );
   }
 
   public async getResources(): Promise<DeferredEntity[]> {
-    const secretAccounts = await Promise.all(
-      this.config.getStringArray('projects').map(async project => {
-        this.logger.info(`Discovering service accounts in project: ${project}`);
-        const res = await this.client.projects.serviceAccounts.list({
+    // IAM service accounts carry no labels, so there is nothing to read an owner or system from and
+    // these entities always fall back to the configured ones.
+    const policies = await this.iamPolicies();
+
+    return this.forEachProject(async project => {
+      const accounts = await this.listAll<iam_v1.Schema$ServiceAccount>(async pageToken => {
+        const { data } = await this.client.projects.serviceAccounts.list({
           name: `projects/${project}`,
+          pageToken,
         });
-        const serviceAccounts: iam_v1.Schema$ServiceAccount[] = res.data.accounts || [];
-        return (await Promise.all(serviceAccounts.map(async account => this.serviceAccountToResource(account)))).filter(
-          account => account !== undefined,
-        );
-      }),
-    );
-    return secretAccounts.flat(2);
+        return { items: data.accounts, nextPageToken: data.nextPageToken };
+      });
+      return accounts
+        .map(account => this.serviceAccountToResource(account, project, policies))
+        .filter(entity => entity !== undefined);
+    });
   }
 }

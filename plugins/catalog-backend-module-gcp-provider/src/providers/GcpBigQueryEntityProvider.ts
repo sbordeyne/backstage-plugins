@@ -1,8 +1,6 @@
-import { ANNOTATION_GCP_PROJECT_ID } from '../constants';
 import { GcpEntityProviderBase } from './GcpEntityProviderBase';
 import * as bigquery from '@google-cloud/bigquery';
 import { DeferredEntity } from '@backstage/plugin-catalog-node';
-import { formatResourceName, regionAnnotation } from '../utils';
 
 export class GcpBigQueryEntityProvider extends GcpEntityProviderBase<bigquery.BigQuery> {
   getProviderName(): string {
@@ -22,21 +20,29 @@ export class GcpBigQueryEntityProvider extends GcpEntityProviderBase<bigquery.Bi
       this.config.getStringArray('projects').map(async project => {
         const [datasets] = await this.client.getDatasets({ projectId: project });
         return datasets.map<DeferredEntity>(dataset => {
+          const labels = dataset.metadata?.labels;
+          const datasetId = dataset.id ?? dataset.metadata?.name ?? 'unknown';
           return {
             entity: {
               apiVersion: 'backstage.io/v1alpha1',
               kind: 'Resource',
-              metadata: {
-                name: formatResourceName(dataset.id ?? dataset.metadata?.name ?? 'unknown'),
-                namespace: 'bigquery-datasets',
-                annotations: {
-                  [ANNOTATION_GCP_PROJECT_ID]: project,
-                  ...regionAnnotation(dataset.location ?? this.defaultRegion),
-                },
-              },
+              metadata: this.metadataOf({
+                name: datasetId,
+                projectId: project,
+                type: 'bigquery-dataset',
+                region: dataset.location,
+                selfLink: dataset.metadata?.selfLink,
+                labels,
+                title: dataset.metadata?.friendlyName,
+                description: dataset.metadata?.description,
+                summary: `BigQuery dataset in ${dataset.location ?? 'an unreported location'}`,
+                consolePath: `bigquery?d=${encodeURIComponent(datasetId)}&page=dataset`,
+                logFilter: `resource.type="bigquery_dataset" resource.labels.dataset_id="${datasetId}"`,
+              }),
               spec: {
                 type: 'bigquery-dataset',
-                owner: this.ownerOf(dataset.metadata?.labels),
+                owner: this.ownerOf(labels),
+                ...this.systemOf(labels),
               },
             },
           };
