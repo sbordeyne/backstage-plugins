@@ -1,0 +1,29 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: platform
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: payments
+spec:
+  owner: platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: payments-api
+  description: Sample component for exercising entity-scoped plugin tabs.
+  annotations:
+    # Picked up by the bruno plugin's entity tab.
+    usebruno.com/report-path: payments-api.json
+spec:
+  type: service
+  lifecycle: production
+  owner: platform
+  system: payments
