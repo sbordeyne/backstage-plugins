@@ -42,7 +42,8 @@
   },
   "devDependencies": {
     "@backstage/backend-test-utils": "backstage:^",
-    "@backstage/cli": "backstage:^"
+    "@backstage/cli": "backstage:^",
+    "typescript": "~5.8.0"
   },
   "files": [
     "dist",
