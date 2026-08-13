@@ -12,6 +12,14 @@ export interface GcpIamGrant {
   role: string;
   /** Title of the IAM condition attached to the binding, when there is one. */
   condition?: string;
+  /**
+   * Project the sweep that found this grant was scoped to, as it is written in config.
+   *
+   * Asset names identify the project by its *number* for several services, and entities are named
+   * by project id, so the id cannot always be recovered from {@link assetName}. A sweep is scoped
+   * to one project and every result belongs to it, which makes this the id that resource lives in.
+   */
+  project: string;
 }
 
 /** A Kubernetes service account allowed to impersonate a Google one through Workload Identity. */
@@ -151,7 +159,7 @@ export class GcpAssetIndex {
           return policies;
         }
         read += 1;
-        this.absorb(result, policies);
+        this.absorb(result, policies, projectId);
       }
 
       pageToken = data.nextPageToken ?? undefined;
@@ -162,7 +170,11 @@ export class GcpAssetIndex {
   }
 
   /** Files one policy result into each of the indexes that will be asked about it. */
-  private absorb(result: cloudasset_v1.Schema$IamPolicySearchResult, policies: GcpProjectPolicies): void {
+  private absorb(
+    result: cloudasset_v1.Schema$IamPolicySearchResult,
+    policies: GcpProjectPolicies,
+    projectId: string,
+  ): void {
     const assetName = result.resource;
     const assetType = result.assetType ?? '';
     if (!assetName) {
@@ -198,6 +210,7 @@ export class GcpAssetIndex {
           assetName,
           assetType,
           role,
+          project: projectId,
           ...(binding.condition?.title ? { condition: binding.condition.title } : {}),
         });
         policies.grantsByMember.set(member, grants);

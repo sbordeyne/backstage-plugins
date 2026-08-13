@@ -51,6 +51,9 @@ describe('GcpAssetIndex', () => {
         assetName: '//storage.googleapis.com/projects/_/buckets/reports',
         assetType: 'storage.googleapis.com/Bucket',
         role: 'roles/storage.objectViewer',
+        // The swept project, kept so a ref can be built for an asset whose name carries no usable
+        // project id of its own.
+        project: 'prod',
       },
     ]);
     expect(policies.membersByAsset.get('//storage.googleapis.com/projects/_/buckets/reports')).toEqual([

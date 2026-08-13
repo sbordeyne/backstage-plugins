@@ -50,7 +50,13 @@ export class GcpRefBuilder {
     });
   }
 
-  /** Ref of the entity a Cloud Asset Inventory asset is ingested as, when anything ingests it. */
+  /**
+   * Ref of the entity a Cloud Asset Inventory asset is ingested as, when anything ingests it.
+   *
+   * `fallbackProject` is the project the sweep that produced the asset was scoped to. It stands in
+   * whenever the asset name carries no usable project id — including the common case where it
+   * carries the project *number*, which no entity is ever named after.
+   */
   refForAsset(assetName: string, assetType: string, fallbackProject: string): string | undefined {
     const parsed = parseAsset(assetName, assetType);
     if (!parsed) {

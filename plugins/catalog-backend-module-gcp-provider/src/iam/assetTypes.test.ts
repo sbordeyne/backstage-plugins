@@ -20,6 +20,16 @@ describe('parseAsset', () => {
     });
   });
 
+  it('rejects a project number, which no entity is named after', () => {
+    const parsed = parseAsset(
+      '//secretmanager.googleapis.com/projects/47603036561/secrets/pg-db-pass',
+      'secretmanager.googleapis.com/Secret',
+    );
+    // Cloud Asset Inventory identifies the project by number for several services. Entities are
+    // named by project id, so the caller's own id has to stand in.
+    expect(parsed).toMatchObject({ leaf: 'pg-db-pass', projectId: undefined });
+  });
+
   it('reads the region of a regional resource', () => {
     const parsed = parseAsset(
       '//compute.googleapis.com/projects/prod/regions/europe-west1/subnetworks/apps',

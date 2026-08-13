@@ -71,7 +71,9 @@ export class GcpServiceAccountEntityProvider extends GcpRestEntityProvider<iam_v
     // account cannot bury its own entity page.
     const refs = new Map<string, string[]>();
     for (const grant of grants) {
-      const ref = this.refForAsset(grant.assetName, grant.assetType, projectId);
+      // The grant's own project, not the account's: the resource a role is held on frequently lives
+      // in another project, and its entity is named after that one.
+      const ref = this.refForAsset(grant.assetName, grant.assetType, grant.project ?? projectId);
       if (!ref || refs.size >= this.iamOptions.maxEdges) {
         continue;
       }

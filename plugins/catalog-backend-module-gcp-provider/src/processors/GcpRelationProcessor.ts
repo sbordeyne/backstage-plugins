@@ -132,7 +132,9 @@ export class GcpRelationProcessor implements CatalogProcessor {
         if (!this.refs.roleWanted(grant.role)) {
           continue;
         }
-        const targetRef = this.refs.refForAsset(grant.assetName, grant.assetType, projectId);
+        // The grant's own project, not the account's: an account routinely holds roles on resources
+        // in other projects, and each of those entities is named after the project it lives in.
+        const targetRef = this.refs.refForAsset(grant.assetName, grant.assetType, grant.project ?? project);
         if (!targetRef) {
           continue;
         }

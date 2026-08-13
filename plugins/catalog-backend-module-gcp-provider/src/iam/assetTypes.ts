@@ -162,8 +162,10 @@ export function parseAsset(assetName: string, assetType: string): ParsedAsset | 
   const projectId = segmentAfter(path, 'projects');
   return {
     mapping,
-    // `projects/_` means the service does not scope the name by project.
-    projectId: projectId && projectId !== '_' ? projectId : undefined,
+    // `projects/_` means the service does not scope the name by project, and several services write
+    // the project *number* here — `projects/47603036561/secrets/…`. Entities are named after the
+    // project id, so a number is as unusable as no project at all and the caller's own id is used.
+    projectId: projectId && projectId !== '_' && !/^\d+$/.test(projectId) ? projectId : undefined,
     region: segmentAfter(path, 'locations') ?? segmentAfter(path, 'regions') ?? segmentAfter(path, 'zones'),
     leaf: lastSegment(path),
   };
