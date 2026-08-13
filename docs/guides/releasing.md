@@ -29,10 +29,12 @@ broken package is worse than a late one.
 
 Each release job then, for its own package:
 
-1. **Builds and packs** it with `yarn`. Yarn does the packing because it is the only tool here that
-   resolves the `backstage:` protocol into real semver ranges; `npm publish` on the source directory
-   would ship `backstage:^` verbatim, which nobody can install. `prepack` also needs the build,
-   since it rewrites the manifest to point at `dist/`.
+1. **Builds and packs** it with `yarn`, after a repo-wide `yarn tsc`. Declarations are emitted into
+   the root `dist-types/` by the root `tsconfig.json` — packages have none of their own — and
+   `package build` copies each package's out of there, so skipping it fails with
+   `No declaration files found at ../../dist-types/…`. Yarn then does the packing because it is the
+   only tool here that resolves the `backstage:` protocol into real semver ranges; `npm publish` on
+   the source directory would ship `backstage:^` verbatim, which nobody can install.
 2. **Publishes the tarball** with `npm publish`, authenticating through
    [trusted publishing](#trusted-publishing).
 3. **Tags** `<package-name>-<version>`, with the npm scope stripped — the

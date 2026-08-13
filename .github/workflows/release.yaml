@@ -164,12 +164,16 @@ jobs:
           npm install -g npm@latest
           npm --version
 
+          # Declarations are emitted repo-wide into dist-types by the root tsconfig, and
+          # `package build` copies each package's out of there. The verify job runs this too,
+          # but on its own runner, so it has to happen again here.
+          yarn tsc
+
           # yarn does the packing because it is the only tool here that resolves the
           # `backstage:` protocol into real semver ranges — npm would publish `backstage:^`
           # verbatim and ship a package nobody can install. `prepack` also needs the build,
           # since it rewrites the manifest to point at dist/.
           yarn workspace "${PACKAGE}" build
-          yarn workspace "${PACKAGE}" tsc
           yarn workspace "${PACKAGE}" pack --out "${RUNNER_TEMP}/package.tgz"
 
           # No token in the environment on purpose: npm uses the OIDC exchange, and
