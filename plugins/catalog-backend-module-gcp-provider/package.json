@@ -12,7 +12,8 @@
   },
   "backstage": {
     "role": "backend-plugin-module",
-    "pluginId": "catalog"
+    "pluginId": "catalog",
+    "pluginPackage": "@backstage/plugin-catalog-backend"
   },
   "scripts": {
     "start": "backstage-cli package start",
@@ -20,7 +21,7 @@
     "lint": "backstage-cli package lint",
     "test": "backstage-cli package test",
     "clean": "backstage-cli package clean",
-    "prepack": "backstage-cli package prepack",
+    "prepack": "yarn workspace root run tsc && backstage-cli package build && backstage-cli package prepack",
     "postpack": "backstage-cli package postpack"
   },
   "dependencies": {
