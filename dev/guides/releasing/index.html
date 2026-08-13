@@ -802,10 +802,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#setup" class="md-nav__link">
+  <a href="#trusted-publishing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Setup
+        Trusted publishing
       
     </span>
   </a>
@@ -899,10 +899,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#setup" class="md-nav__link">
+  <a href="#trusted-publishing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Setup
+        Trusted publishing
       
     </span>
   </a>
@@ -973,50 +973,81 @@ publishes it to npm, tags the repository and opens a GitHub release.</p>
 <p>Nothing else is needed: there is no separate publish command to run, and no changelog file to
 maintain.</p>
 <h2 id="what-the-workflow-does">What the workflow does<a class="headerlink" href="#what-the-workflow-does" title="Permanent link">&para;</a></h2>
+<p>Three jobs:</p>
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>Scope</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>discover</code></td>
+<td>repo</td>
+<td>Asks npm which workspace versions are unreleased, and builds the matrix</td>
+</tr>
+<tr>
+<td><code>verify</code></td>
+<td>repo</td>
+<td><code>yarn tsc</code>, <code>yarn lint:all</code>, <code>yarn prettier:check</code>, <code>yarn test</code></td>
+</tr>
+<tr>
+<td><code>release</code></td>
+<td><strong>package</strong></td>
+<td>One matrix job per package being released</td>
+</tr>
+</tbody>
+</table>
+<p><code>verify</code> is repo-wide because those checks are: the repo shares a single <code>tsconfig.json</code>, and
+formatting covers docs and workflows as well as source. Nothing reaches npm until it passes — a
+broken package is worse than a late one.</p>
+<p>Each release job then, for its own package:</p>
 <ol>
-<li><strong>Verifies the whole repo</strong> — <code>yarn tsc</code>, <code>yarn lint:all</code>, <code>yarn prettier:check</code>, <code>yarn test</code>,
-   then <code>yarn build:all</code>. A broken package is worse than a late one, so nothing is published until
-   all of that passes.</li>
-<li><strong>Works out what to release</strong> by asking the npm registry for each public workspace's current
-   version. Anything the registry answers <code>404</code> for is released.</li>
-<li><strong>Publishes</strong> with <code>yarn workspace &lt;name&gt; npm publish --access public --tolerate-republish</code>.</li>
+<li><strong>Builds and packs</strong> it with <code>yarn</code>. Yarn does the packing because it is the only tool here that
+   resolves the <code>backstage:</code> protocol into real semver ranges; <code>npm publish</code> on the source directory
+   would ship <code>backstage:^</code> verbatim, which nobody can install. <code>prepack</code> also needs the build,
+   since it rewrites the manifest to point at <code>dist/</code>.</li>
+<li><strong>Publishes the tarball</strong> with <code>npm publish</code>, authenticating through
+   <a href="#trusted-publishing">trusted publishing</a>.</li>
 <li><strong>Tags</strong> <code>&lt;package-name&gt;-&lt;version&gt;</code>, with the npm scope stripped — the
    <code>@sbordeyne/plugin-catalog-backend-module-gcp-provider</code> package at <code>0.2.0</code> is tagged
    <code>plugin-catalog-backend-module-gcp-provider-0.2.0</code>.</li>
 <li><strong>Creates a GitHub release</strong> on that tag, with notes listing the commits that touched that
    package's directory since its previous tag.</li>
 </ol>
+<p>The matrix runs with <code>fail-fast: false</code>: one package failing to publish says nothing about the
+others, and a package whose trusted publisher is not configured yet should not hold up the rest.</p>
 <p>The registry, rather than the diff of the push, decides what to release. That matters: a re-run, a
-squashed merge, or a run that failed halfway through thirteen packages all reach the same answer,
-and a version that is already on npm is never republished.</p>
-<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
-<p>One repository secret is required:</p>
-<table>
-<thead>
-<tr>
-<th>Secret</th>
-<th>What</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>NPM_TOKEN</code></td>
-<td>npm <strong>automation</strong> token with publish rights on the <code>@sbordeyne</code> scope</td>
-</tr>
-</tbody>
-</table>
-<p>Automation tokens bypass 2FA, which a granular or classic token does not — a publish from CI with
-2FA enforced on the account fails without one. The workflow needs no other secret; tags and releases
-use the <code>GITHUB_TOKEN</code> that Actions provides, which is why the job declares <code>contents: write</code>.</p>
+squashed merge, or a run where one package's publish failed all reach the same answer, and a version
+already on npm is never republished.</p>
+<h2 id="trusted-publishing">Trusted publishing<a class="headerlink" href="#trusted-publishing" title="Permanent link">&para;</a></h2>
+<p>There is <strong>no npm token anywhere</strong>. Each package is configured on npm with a trusted publisher
+pointing at this repository and at <code>.github/workflows/release.yaml</code>, and npm exchanges the
+workflow's OIDC token for a short-lived publish credential. Provenance is generated as part of that.</p>
+<p>Three things have to hold, or publishing fails:</p>
+<ul>
+<li>The release job declares <code>id-token: write</code>. Without it there is no OIDC token to exchange.</li>
+<li>The workflow file stays at <code>.github/workflows/release.yaml</code>. The trusted publisher is bound to
+  that filename, so renaming or moving the workflow breaks publishing for every package.</li>
+<li>The npm CLI is at least 11.5.1, which is the first version that can do the exchange. The job
+  installs a current npm rather than using the one bundled with Node.</li>
+</ul>
+<p>A new package needs its trusted publisher configured on npm before its first release; until then its
+matrix job fails on authentication while the others publish normally.</p>
+<p>Tags and GitHub releases use the <code>GITHUB_TOKEN</code> Actions provides, which is why the job also declares
+<code>contents: write</code>.</p>
 <h2 id="checking-before-releasing">Checking before releasing<a class="headerlink" href="#checking-before-releasing" title="Permanent link">&para;</a></h2>
-<p>The workflow can be run from the Actions tab with <strong>dry run</strong> ticked. It performs every check and
-then lists what it would publish and which tags it would create, without touching npm or the
-repository.</p>
+<p>The workflow can be run from the Actions tab with <strong>dry run</strong> ticked. <code>discover</code> still lists what it
+would publish, and which tags it would create, in the run summary — the release jobs are skipped.</p>
 <h2 id="when-something-goes-wrong">When something goes wrong<a class="headerlink" href="#when-something-goes-wrong" title="Permanent link">&para;</a></h2>
-<p><strong>A package published but the tag is missing.</strong> Re-run the workflow. The publish is skipped
-(<code>--tolerate-republish</code>), and the tag and release are created on the second pass.</p>
-<p><strong>One package fails, others succeed.</strong> Each package is published, tagged and released
-independently; the job reports the failure at the end but does not abandon the rest.</p>
+<p><strong>A package published but the tag is missing.</strong> Re-run the failed job. <code>discover</code> no longer lists
+that package — it is on npm now — so re-run the whole workflow only after bumping, or create the tag
+by hand as below.</p>
+<p><strong>One package fails, others succeed.</strong> Each package has its own matrix job, so the rest carry on and
+only the failed one needs looking at. A failure on <code>npm publish</code> with an authentication error means
+that package has no trusted publisher configured yet.</p>
 <p><strong>The registry did not answer.</strong> The run fails at the detection step rather than guessing. Nothing
 is published — re-run it.</p>
 <p><strong>A version was published by hand.</strong> Nothing breaks. The registry check sees it and skips it, but
@@ -1049,7 +1080,7 @@ no tag or GitHub release is created for it. Tag it yourself if you want one:</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 13, 2026 17:33:16 UTC">August 13, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 13, 2026 18:22:50 UTC">August 13, 2026</span>
   </span>
 
     
