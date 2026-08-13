@@ -637,6 +637,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#relation-vocabulary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relation vocabulary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#relations" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1135,6 +1146,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#relation-vocabulary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relation vocabulary
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2003,6 +2025,89 @@ Workload-Identity-enabled cluster in that project.</p>
 <a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">        </span><span class="nt">annotateResources</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w"> </span><span class="c1"># default</span>
 <a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">        </span><span class="nt">cacheTtlSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600</span><span class="w"> </span><span class="c1"># default</span>
 </code></pre></div>
+<h2 id="relation-vocabulary">Relation vocabulary<a class="headerlink" href="#relation-vocabulary" title="Permanent link">&para;</a></h2>
+<p>Every edge is <code>dependsOn</code> / <code>dependencyOf</code> by default. <code>iam.relations: gcp</code> names each edge after
+what it actually is — access edges take the verb the IAM role grants, and structural edges become
+containment or attachment:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">catalog</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">providers</span><span class="p">:</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">gcp</span><span class="p">:</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">      </span><span class="nt">iam</span><span class="p">:</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">        </span><span class="nt">relations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gcp</span><span class="w"> </span><span class="c1"># builtin (default) | gcp</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Source edge</th>
+<th><code>builtin</code></th>
+<th><code>gcp</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>roles/secretmanager.secretAccessor</code></td>
+<td><code>dependsOn</code></td>
+<td><code>accessorOf</code> / <code>accessedBy</code></td>
+</tr>
+<tr>
+<td><code>roles/pubsub.publisher</code></td>
+<td><code>dependsOn</code></td>
+<td><code>publisherTo</code> / <code>publishedToBy</code></td>
+</tr>
+<tr>
+<td><code>roles/run.invoker</code></td>
+<td><code>dependsOn</code></td>
+<td><code>invokerOf</code> / <code>invokedBy</code></td>
+</tr>
+<tr>
+<td><code>roles/cloudsql.client</code></td>
+<td><code>dependsOn</code></td>
+<td><code>clientOf</code> / <code>connectedToBy</code></td>
+</tr>
+<tr>
+<td><code>roles/cloudkms.cryptoKeyEncrypterDecrypter</code></td>
+<td><code>dependsOn</code></td>
+<td><code>encrypterOf</code> / <code>encryptedBy</code></td>
+</tr>
+<tr>
+<td>anything <code>.admin</code></td>
+<td><code>dependsOn</code></td>
+<td><code>adminOf</code> / <code>administeredBy</code></td>
+</tr>
+<tr>
+<td>anything <code>.editor</code> or <code>.writer</code></td>
+<td><code>dependsOn</code></td>
+<td><code>writerOf</code> / <code>writtenBy</code></td>
+</tr>
+<tr>
+<td>anything <code>.viewer</code> or <code>.reader</code></td>
+<td><code>dependsOn</code></td>
+<td><code>readerOf</code> / <code>readBy</code></td>
+</tr>
+<tr>
+<td>unrecognized role</td>
+<td><code>dependsOn</code></td>
+<td><code>userOf</code> / <code>usedBy</code></td>
+</tr>
+<tr>
+<td>Spanner database → instance, KMS key → ring</td>
+<td><code>dependsOn</code></td>
+<td><code>partOf</code> / <code>hasPart</code></td>
+</tr>
+<tr>
+<td>GKE cluster → subnet, Redis → VPC</td>
+<td><code>dependsOn</code></td>
+<td><code>attachedTo</code> / <code>hasAttached</code></td>
+</tr>
+</tbody>
+</table>
+<p>Roles classify by suffix, so a GCP role that did not exist when this was written still lands
+somewhere sensible, and an account holding several roles on one resource gets the strongest verb
+only.</p>
+<p>Custom relation types cannot be expressed in a spec field, so they are emitted by a
+<code>CatalogProcessor</code> the module registers. The consequence is worth checking before switching an
+existing installation: those edges are no longer <code>dependsOn</code>, so anything filtering on it — some
+default Catalog Graph card configurations included — stops showing them.</p>
 <h2 id="relations">Relations<a class="headerlink" href="#relations" title="Permanent link">&para;</a></h2>
 <p>Providers relate their entities to what GCP says they depend on. Each ref is built from the
 namespace of the provider that ingests the target, so a relation still resolves when the two
@@ -2155,7 +2260,7 @@ per refresh over a set that changes constantly. Narrow it with <code>states: [RU
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 13, 2026 11:40:26 UTC">August 13, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 13, 2026 14:59:20 UTC">August 13, 2026</span>
   </span>
 
     
