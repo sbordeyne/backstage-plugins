@@ -576,6 +576,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#annotations" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -583,6 +594,45 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-access-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The access graph
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The access graph">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attaching-a-component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attaching a Component
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limits-worth-knowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits worth knowing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1028,6 +1078,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#annotations" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1035,6 +1096,45 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-access-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The access graph
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The access graph">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attaching-a-component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attaching a Component
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limits-worth-knowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits worth knowing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1082,16 +1182,28 @@
 
 <h1 id="gcp-catalog-provider">GCP catalog provider<a class="headerlink" href="#gcp-catalog-provider" title="Permanent link">&para;</a></h1>
 <p><code>@sbordeyne/plugin-catalog-backend-module-gcp-provider</code></p>
-<p>A catalog backend module that ingests Google Cloud resources as <code>Resource</code> entities. Seven
-providers ship in the module, each enabled independently by its own config block, each on its
-own schedule.</p>
+<p>A catalog backend module that ingests Google Cloud resources as <code>Resource</code> entities and, from IAM,
+the edges between them. Fifty-nine providers ship in the module, each enabled independently by its
+own config block, each on its own schedule.</p>
+<p>The point of the edges is this: a Component that names one Kubernetes service account can be walked
+down to everything it reaches.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Component:auth
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  └─ Resource:prod-auth-authsa          (kubernetes-service-account, via Workload Identity)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>       ├─ Resource:prod-cluster         (kubernetes-cluster — where it can run)
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>       └─ Resource:auth-sa              (google-service-account — the identity it assumes)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>            ├─ Resource:auth-db         (cloudsql-instance)      roles/cloudsql.client
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>            ├─ Resource:auth-jwks       (secret)                 roles/secretmanager.secretAccessor
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            └─ Resource:auth-events     (pubsub-topic)           roles/pubsub.publisher
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                 └─ Resource:audit-sa   (google-service-account) roles/pubsub.subscriber
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                      └─ Component:audit
+</code></pre></div>
+<p>See <a href="#the-access-graph">the access graph</a> for how that is built and what it costs.</p>
 <table>
 <thead>
 <tr>
 <th>Config key</th>
 <th>Ingests</th>
 <th><code>spec.type</code></th>
-<th>Namespace</th>
 </tr>
 </thead>
 <tbody>
@@ -1099,58 +1211,315 @@ own schedule.</p>
 <td><code>bigquery</code></td>
 <td>BigQuery datasets</td>
 <td><code>bigquery-dataset</code></td>
-<td><code>bigquery-datasets</code></td>
 </tr>
 <tr>
 <td><code>storage</code></td>
 <td>Cloud Storage buckets</td>
 <td><code>bucket</code></td>
-<td><code>buckets</code></td>
 </tr>
 <tr>
 <td><code>cloudsql</code></td>
 <td>Cloud SQL instances</td>
 <td><code>cloudsql-instance</code></td>
-<td><code>cloudsql-instances</code></td>
 </tr>
 <tr>
 <td><code>pubsub</code></td>
-<td>Pub/Sub topics</td>
-<td><code>pubsub-topic</code></td>
-<td><code>pubsub-topics</code></td>
-</tr>
-<tr>
-<td><code>pubsub</code></td>
-<td>Pub/Sub subscriptions</td>
-<td><code>pubsub-subscription</code></td>
-<td><code>pubsub-subscriptions</code></td>
+<td>Pub/Sub topics and subscriptions</td>
+<td><code>pubsub-topic</code>, <code>pubsub-subscription</code></td>
 </tr>
 <tr>
 <td><code>secretmanager</code></td>
 <td>Secret Manager secrets</td>
 <td><code>secret</code></td>
-<td><code>secrets</code></td>
 </tr>
 <tr>
 <td><code>service-account</code></td>
 <td>IAM service accounts</td>
 <td><code>google-service-account</code></td>
-<td><code>service-accounts</code></td>
 </tr>
 <tr>
 <td><code>clusters</code></td>
 <td>GKE clusters</td>
 <td><code>kubernetes-cluster</code></td>
-<td><code>clusters</code></td>
+</tr>
+<tr>
+<td><code>vpc</code></td>
+<td>VPC networks, with peerings as relations</td>
+<td><code>vpc-network</code></td>
+</tr>
+<tr>
+<td><code>subnets</code></td>
+<td>Subnetworks</td>
+<td><code>subnetwork</code></td>
+</tr>
+<tr>
+<td><code>firewall</code></td>
+<td>Firewall rules</td>
+<td><code>firewall-rule</code></td>
+</tr>
+<tr>
+<td><code>routers</code></td>
+<td>Cloud Routers and their NAT gateways</td>
+<td><code>cloud-router</code>, <code>cloud-nat</code></td>
+</tr>
+<tr>
+<td><code>dns</code></td>
+<td>Cloud DNS managed zones</td>
+<td><code>dns-zone</code></td>
+</tr>
+<tr>
+<td><code>instances</code></td>
+<td>Compute Engine instances</td>
+<td><code>compute-instance</code></td>
+</tr>
+<tr>
+<td><code>instance-groups</code></td>
+<td>Managed instance groups</td>
+<td><code>instance-group</code></td>
+</tr>
+<tr>
+<td><code>images</code></td>
+<td>Custom Compute Engine images</td>
+<td><code>compute-image</code></td>
+</tr>
+<tr>
+<td><code>spanner</code></td>
+<td>Spanner instances and databases</td>
+<td><code>spanner-instance</code>, <code>spanner-database</code></td>
+</tr>
+<tr>
+<td><code>redis</code></td>
+<td>Memorystore for Redis instances</td>
+<td><code>redis-instance</code></td>
+</tr>
+<tr>
+<td><code>alloydb</code></td>
+<td>AlloyDB clusters and instances</td>
+<td><code>alloydb-cluster</code>, <code>alloydb-instance</code></td>
+</tr>
+<tr>
+<td><code>bigtable</code></td>
+<td>Bigtable instances</td>
+<td><code>bigtable-instance</code></td>
+</tr>
+<tr>
+<td><code>firestore</code></td>
+<td>Firestore databases</td>
+<td><code>firestore-database</code></td>
+</tr>
+<tr>
+<td><code>managedkafka</code></td>
+<td>Managed Kafka clusters and topics</td>
+<td><code>kafka-cluster</code>, <code>kafka-topic</code></td>
+</tr>
+<tr>
+<td><code>eventarc</code></td>
+<td>Eventarc triggers</td>
+<td><code>eventarc-trigger</code></td>
+</tr>
+<tr>
+<td><code>cloudtasks</code></td>
+<td>Cloud Tasks queues</td>
+<td><code>cloud-tasks-queue</code></td>
+</tr>
+<tr>
+<td><code>scheduler</code></td>
+<td>Cloud Scheduler jobs</td>
+<td><code>scheduler-job</code></td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td>Cloud Run services and jobs</td>
+<td><code>cloud-run-service</code>, <code>cloud-run-job</code></td>
+</tr>
+<tr>
+<td><code>functions</code></td>
+<td>Cloud Functions, both generations</td>
+<td><code>cloud-function</code></td>
+</tr>
+<tr>
+<td><code>artifactregistry</code></td>
+<td>Artifact Registry repositories</td>
+<td><code>artifact-repository</code></td>
 </tr>
 </tbody>
 </table>
+<p>IAM, load balancing, CI/CD, security, observability, the data platform and ML:</p>
+<table>
+<thead>
+<tr>
+<th>Config key</th>
+<th>Ingests</th>
+<th><code>spec.type</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>workload-identity</code></td>
+<td>Kubernetes accounts bound to Google ones</td>
+<td><code>kubernetes-service-account</code></td>
+</tr>
+<tr>
+<td><code>iam-roles</code></td>
+<td>Custom IAM roles</td>
+<td><code>iam-role</code></td>
+</tr>
+<tr>
+<td><code>loadbalancers</code></td>
+<td>Forwarding rules, URL maps, backend services</td>
+<td><code>load-balancer</code>, <code>url-map</code>, <code>backend-service</code></td>
+</tr>
+<tr>
+<td><code>sslcertificates</code></td>
+<td>Compute SSL certificates</td>
+<td><code>ssl-certificate</code></td>
+</tr>
+<tr>
+<td><code>armor</code></td>
+<td>Cloud Armor policies</td>
+<td><code>security-policy</code></td>
+</tr>
+<tr>
+<td><code>addresses</code></td>
+<td>Reserved IP addresses</td>
+<td><code>ip-address</code></td>
+</tr>
+<tr>
+<td><code>vpn</code></td>
+<td>VPN gateways and tunnels</td>
+<td><code>vpn-gateway</code>, <code>vpn-tunnel</code></td>
+</tr>
+<tr>
+<td><code>cloudbuild</code></td>
+<td>Build triggers</td>
+<td><code>build-trigger</code></td>
+</tr>
+<tr>
+<td><code>clouddeploy</code></td>
+<td>Delivery pipelines and targets</td>
+<td><code>delivery-pipeline</code>, <code>deploy-target</code></td>
+</tr>
+<tr>
+<td><code>workflows</code></td>
+<td>Workflows</td>
+<td><code>workflow</code></td>
+</tr>
+<tr>
+<td><code>composer</code></td>
+<td>Composer environments</td>
+<td><code>composer-environment</code></td>
+</tr>
+<tr>
+<td><code>dataproc</code></td>
+<td>Dataproc clusters</td>
+<td><code>dataproc-cluster</code></td>
+</tr>
+<tr>
+<td><code>kms</code></td>
+<td>KMS key rings and keys</td>
+<td><code>kms-key-ring</code>, <code>kms-key</code></td>
+</tr>
+<tr>
+<td><code>certificatemanager</code></td>
+<td>Certificate Manager certificates and maps</td>
+<td><code>certificate</code>, <code>certificate-map</code></td>
+</tr>
+<tr>
+<td><code>binaryauthorization</code></td>
+<td>Binary Authorization policy and attestors</td>
+<td><code>binauthz-policy</code>, <code>binauthz-attestor</code></td>
+</tr>
+<tr>
+<td><code>alerts</code></td>
+<td>Alert policies and uptime checks</td>
+<td><code>alert-policy</code>, <code>uptime-check</code></td>
+</tr>
+<tr>
+<td><code>slos</code></td>
+<td>Monitoring services and SLOs</td>
+<td><code>monitoring-service</code>, <code>slo</code></td>
+</tr>
+<tr>
+<td><code>logsinks</code></td>
+<td>Log sinks</td>
+<td><code>log-sink</code></td>
+</tr>
+<tr>
+<td><code>filestore</code></td>
+<td>Filestore instances</td>
+<td><code>filestore-instance</code></td>
+</tr>
+<tr>
+<td><code>vpcconnectors</code></td>
+<td>Serverless VPC Access connectors</td>
+<td><code>vpc-connector</code></td>
+</tr>
+<tr>
+<td><code>memcache</code></td>
+<td>Memorystore for Memcached</td>
+<td><code>memcache-instance</code></td>
+</tr>
+<tr>
+<td><code>appengine</code></td>
+<td>App Engine services</td>
+<td><code>appengine-service</code></td>
+</tr>
+<tr>
+<td><code>disks</code></td>
+<td>Persistent disks and snapshots</td>
+<td><code>disk</code>, <code>snapshot</code></td>
+</tr>
+<tr>
+<td><code>bqtransfers</code></td>
+<td>BigQuery transfers and scheduled queries</td>
+<td><code>bigquery-transfer</code></td>
+</tr>
+<tr>
+<td><code>bqreservations</code></td>
+<td>BigQuery slot reservations</td>
+<td><code>bigquery-reservation</code></td>
+</tr>
+<tr>
+<td><code>analyticshub</code></td>
+<td>Analytics Hub exchanges and listings</td>
+<td><code>analytics-hub-exchange</code>, <code>analytics-hub-listing</code></td>
+</tr>
+<tr>
+<td><code>datastream</code></td>
+<td>Datastream streams</td>
+<td><code>datastream-stream</code></td>
+</tr>
+<tr>
+<td><code>dataplex</code></td>
+<td>Dataplex lakes</td>
+<td><code>dataplex-lake</code></td>
+</tr>
+<tr>
+<td><code>dataflow</code></td>
+<td>Dataflow jobs</td>
+<td><code>dataflow-job</code></td>
+</tr>
+<tr>
+<td><code>vertex</code></td>
+<td>Vertex endpoints and models</td>
+<td><code>vertex-endpoint</code>, <code>vertex-model</code></td>
+</tr>
+<tr>
+<td><code>workbench</code></td>
+<td>Vertex AI Workbench instances</td>
+<td><code>workbench-instance</code></td>
+</tr>
+</tbody>
+</table>
+<p>Entities land in the namespace given by the <code>namespace</code> template, which defaults to <code>default</code>.
+Each provider needs its API enabled in the projects it enumerates; a project whose API is off, or
+that the credentials cannot read, is logged and skipped rather than failing the refresh.</p>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>yarn<span class="w"> </span>--cwd<span class="w"> </span>packages/backend<span class="w"> </span>add<span class="w"> </span>@sbordeyne/plugin-catalog-backend-module-gcp-provider
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>yarn<span class="w"> </span>--cwd<span class="w"> </span>packages/backend<span class="w"> </span>add<span class="w"> </span>@sbordeyne/plugin-catalog-backend-module-gcp-provider
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// packages/backend/src/index.ts</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;@backstage/plugin-catalog-backend&#39;</span><span class="p">));</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;@sbordeyne/plugin-catalog-backend-module-gcp-provider&#39;</span><span class="p">));</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">// packages/backend/src/index.ts</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;@backstage/plugin-catalog-backend&#39;</span><span class="p">));</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;@sbordeyne/plugin-catalog-backend-module-gcp-provider&#39;</span><span class="p">));</span>
 </code></pre></div>
 <p>The module registers nothing at all when <code>catalog.providers.gcp</code> is absent, so installing it
 before configuring it is harmless.</p>
@@ -1167,51 +1536,86 @@ before configuring it is harmless.</p>
 <a href="../../guides/gcp-permissions/">GCP permissions</a> for the roles each provider needs and how to
 grant them.</p>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">catalog</span><span class="p">:</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">providers</span><span class="p">:</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">gcp</span><span class="p">:</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">      </span><span class="c1"># Applied to every provider below unless it sets its own value.</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">      </span><span class="nt">defaultOwner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group:default/platform</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="nt">defaultRegion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">europe-west1</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="nt">ownerLabel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage.io/owner-ref</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">service-account</span><span class="p">:</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">          </span><span class="nt">frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">          </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">      </span><span class="nt">bigquery</span><span class="p">:</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">my-other-project</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">      </span><span class="nt">pubsub</span><span class="p">:</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="w">        </span><span class="c1"># Pub/Sub resources belong to a different team than the rest.</span>
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="w">        </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group:default/back-end</span>
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="w">        </span><span class="c1"># Prefixes stripped from topic and subscription names before they become entity</span>
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="w">        </span><span class="c1"># names. Applied repeatedly until no prefix matches, so &#39;myorg-prod-orders&#39; with</span>
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="w">        </span><span class="c1"># [&#39;myorg-&#39;, &#39;prod-&#39;] becomes &#39;orders&#39;. Defaults to [] — names are used as-is.</span>
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="w">        </span><span class="nt">stripPrefixes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&#39;myorg-&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;prod-&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;preprod-&#39;</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>
-<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="w">      </span><span class="nt">cloudsql</span><span class="p">:</span>
-<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a>
-<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a><span class="w">      </span><span class="nt">storage</span><span class="p">:</span>
-<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">15</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>
-<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a><span class="w">      </span><span class="nt">secretmanager</span><span class="p">:</span>
-<a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-2-39" name="__codelineno-2-39" href="#__codelineno-2-39"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
-<a id="__codelineno-2-40" name="__codelineno-2-40" href="#__codelineno-2-40"></a>
-<a id="__codelineno-2-41" name="__codelineno-2-41" href="#__codelineno-2-41"></a><span class="w">      </span><span class="nt">clusters</span><span class="p">:</span>
-<a id="__codelineno-2-42" name="__codelineno-2-42" href="#__codelineno-2-42"></a><span class="w">        </span><span class="c1"># Kept configured, but not ingested for now.</span>
-<a id="__codelineno-2-43" name="__codelineno-2-43" href="#__codelineno-2-43"></a><span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-<a id="__codelineno-2-44" name="__codelineno-2-44" href="#__codelineno-2-44"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-2-45" name="__codelineno-2-45" href="#__codelineno-2-45"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">catalog</span><span class="p">:</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">providers</span><span class="p">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">gcp</span><span class="p">:</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">      </span><span class="c1"># Applied to every provider below unless it sets its own value.</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">defaultOwner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group:default/platform</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">defaultRegion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">europe-west1</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">ownerLabel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage.io/owner-ref</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="nt">systemLabel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage.io/system-ref</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">      </span><span class="c1"># Every entity of a project lands together.</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">      </span><span class="nt">defaultNamespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gcp-${projectId}</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">      </span><span class="nt">service-account</span><span class="p">:</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">          </span><span class="nt">frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">          </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">      </span><span class="nt">bigquery</span><span class="p">:</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">my-other-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">      </span><span class="nt">pubsub</span><span class="p">:</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="w">        </span><span class="c1"># Pub/Sub resources belong to a different team than the rest.</span>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="w">        </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group:default/back-end</span>
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="w">        </span><span class="c1"># Prefixes stripped from topic and subscription names before they become entity</span>
+<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="w">        </span><span class="c1"># names. Applied repeatedly until no prefix matches, so &#39;myorg-prod-orders&#39; with</span>
+<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a><span class="w">        </span><span class="c1"># [&#39;myorg-&#39;, &#39;prod-&#39;] becomes &#39;orders&#39;. Defaults to [] — names are used as-is.</span>
+<a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a><span class="w">        </span><span class="nt">stripPrefixes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&#39;myorg-&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;prod-&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;preprod-&#39;</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a>
+<a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a><span class="w">      </span><span class="nt">cloudsql</span><span class="p">:</span>
+<a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-35" name="__codelineno-3-35" href="#__codelineno-3-35"></a>
+<a id="__codelineno-3-36" name="__codelineno-3-36" href="#__codelineno-3-36"></a><span class="w">      </span><span class="nt">storage</span><span class="p">:</span>
+<a id="__codelineno-3-37" name="__codelineno-3-37" href="#__codelineno-3-37"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-38" name="__codelineno-3-38" href="#__codelineno-3-38"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">15</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-39" name="__codelineno-3-39" href="#__codelineno-3-39"></a>
+<a id="__codelineno-3-40" name="__codelineno-3-40" href="#__codelineno-3-40"></a><span class="w">      </span><span class="nt">secretmanager</span><span class="p">:</span>
+<a id="__codelineno-3-41" name="__codelineno-3-41" href="#__codelineno-3-41"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-42" name="__codelineno-3-42" href="#__codelineno-3-42"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-43" name="__codelineno-3-43" href="#__codelineno-3-43"></a>
+<a id="__codelineno-3-44" name="__codelineno-3-44" href="#__codelineno-3-44"></a><span class="w">      </span><span class="nt">clusters</span><span class="p">:</span>
+<a id="__codelineno-3-45" name="__codelineno-3-45" href="#__codelineno-3-45"></a><span class="w">        </span><span class="c1"># Kept configured, but not ingested for now.</span>
+<a id="__codelineno-3-46" name="__codelineno-3-46" href="#__codelineno-3-46"></a><span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-3-47" name="__codelineno-3-47" href="#__codelineno-3-47"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-48" name="__codelineno-3-48" href="#__codelineno-3-48"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-49" name="__codelineno-3-49" href="#__codelineno-3-49"></a>
+<a id="__codelineno-3-50" name="__codelineno-3-50" href="#__codelineno-3-50"></a><span class="w">      </span><span class="nt">vpc</span><span class="p">:</span>
+<a id="__codelineno-3-51" name="__codelineno-3-51" href="#__codelineno-3-51"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-52" name="__codelineno-3-52" href="#__codelineno-3-52"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-53" name="__codelineno-3-53" href="#__codelineno-3-53"></a>
+<a id="__codelineno-3-54" name="__codelineno-3-54" href="#__codelineno-3-54"></a><span class="w">      </span><span class="nt">subnets</span><span class="p">:</span>
+<a id="__codelineno-3-55" name="__codelineno-3-55" href="#__codelineno-3-55"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-56" name="__codelineno-3-56" href="#__codelineno-3-56"></a><span class="w">        </span><span class="c1"># Only the regions actually in use, rather than every region GCP has.</span>
+<a id="__codelineno-3-57" name="__codelineno-3-57" href="#__codelineno-3-57"></a><span class="w">        </span><span class="nt">locations</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">europe-west1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">europe-west9</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-58" name="__codelineno-3-58" href="#__codelineno-3-58"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-59" name="__codelineno-3-59" href="#__codelineno-3-59"></a>
+<a id="__codelineno-3-60" name="__codelineno-3-60" href="#__codelineno-3-60"></a><span class="w">      </span><span class="nt">instances</span><span class="p">:</span>
+<a id="__codelineno-3-61" name="__codelineno-3-61" href="#__codelineno-3-61"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-62" name="__codelineno-3-62" href="#__codelineno-3-62"></a><span class="w">        </span><span class="c1"># Instances churn and each refresh rewrites the whole set; narrow and slow it down.</span>
+<a id="__codelineno-3-63" name="__codelineno-3-63" href="#__codelineno-3-63"></a><span class="w">        </span><span class="nt">states</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">RUNNING</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-64" name="__codelineno-3-64" href="#__codelineno-3-64"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">15</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-65" name="__codelineno-3-65" href="#__codelineno-3-65"></a>
+<a id="__codelineno-3-66" name="__codelineno-3-66" href="#__codelineno-3-66"></a><span class="w">      </span><span class="nt">spanner</span><span class="p">:</span>
+<a id="__codelineno-3-67" name="__codelineno-3-67" href="#__codelineno-3-67"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-68" name="__codelineno-3-68" href="#__codelineno-3-68"></a><span class="w">        </span><span class="nt">extraLinks</span><span class="p">:</span>
+<a id="__codelineno-3-69" name="__codelineno-3-69" href="#__codelineno-3-69"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Runbook</span>
+<a id="__codelineno-3-70" name="__codelineno-3-70" href="#__codelineno-3-70"></a><span class="w">            </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://wiki.example.com/db/${name}</span>
+<a id="__codelineno-3-71" name="__codelineno-3-71" href="#__codelineno-3-71"></a><span class="w">            </span><span class="nt">icon</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs</span>
+<a id="__codelineno-3-72" name="__codelineno-3-72" href="#__codelineno-3-72"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-73" name="__codelineno-3-73" href="#__codelineno-3-73"></a>
+<a id="__codelineno-3-74" name="__codelineno-3-74" href="#__codelineno-3-74"></a><span class="w">      </span><span class="nt">run</span><span class="p">:</span>
+<a id="__codelineno-3-75" name="__codelineno-3-75" href="#__codelineno-3-75"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-76" name="__codelineno-3-76" href="#__codelineno-3-76"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-3-77" name="__codelineno-3-77" href="#__codelineno-3-77"></a>
+<a id="__codelineno-3-78" name="__codelineno-3-78" href="#__codelineno-3-78"></a><span class="w">      </span><span class="nt">eventarc</span><span class="p">:</span>
+<a id="__codelineno-3-79" name="__codelineno-3-79" href="#__codelineno-3-79"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-3-80" name="__codelineno-3-80" href="#__codelineno-3-80"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <h3 id="shared-keys">Shared keys<a class="headerlink" href="#shared-keys" title="Permanent link">&para;</a></h3>
 <p>Set once under <code>catalog.providers.gcp</code> and inherited by every provider.</p>
@@ -1232,22 +1636,61 @@ grant them.</p>
 <td><code>spec.owner</code> for resources whose label names none</td>
 </tr>
 <tr>
+<td><code>ownerLabel</code></td>
+<td>string</td>
+<td><code>backstage.io/owner-ref</code></td>
+<td>Label read off a resource to find its owner</td>
+</tr>
+<tr>
+<td><code>defaultSystem</code></td>
+<td>string</td>
+<td><em><code>spec.system</code> omitted</em></td>
+<td>System for resources whose label names none</td>
+</tr>
+<tr>
+<td><code>systemLabel</code></td>
+<td>string</td>
+<td><code>backstage.io/system-ref</code></td>
+<td>Label read off a resource to find its system</td>
+</tr>
+<tr>
+<td><code>defaultNamespace</code></td>
+<td>string</td>
+<td><code>default</code></td>
+<td>Namespace template for ingested entities</td>
+</tr>
+<tr>
 <td><code>defaultRegion</code></td>
 <td>string</td>
 <td><em>annotation omitted</em></td>
 <td>Region used when the GCP API reports none</td>
 </tr>
 <tr>
-<td><code>ownerLabel</code></td>
-<td>string</td>
-<td><code>backstage.io/owner-ref</code></td>
-<td>Label read off a resource to find its owner</td>
+<td><code>links</code></td>
+<td>object</td>
+<td>console and docs on</td>
+<td>Which <code>metadata.links</code> families are written</td>
+</tr>
+<tr>
+<td><code>tags</code></td>
+<td>object</td>
+<td>every source off</td>
+<td>Which facts become <code>metadata.tags</code></td>
+</tr>
+<tr>
+<td><code>descriptions</code></td>
+<td>boolean</td>
+<td><code>true</code></td>
+<td>Generated description when the API reports none</td>
 </tr>
 </tbody>
 </table>
+<p>The namespace template accepts <code>${projectId}</code>, <code>${type}</code>, <code>${provider}</code>, <code>${region}</code> and <code>${name}</code>,
+so <code>gcp-${projectId}</code> puts every entity of a project together. The rendered value is lowercased
+with anything outside <code>[a-z0-9-]</code> folded to <code>-</code>.</p>
 <h3 id="per-provider-keys">Per-provider keys<a class="headerlink" href="#per-provider-keys" title="Permanent link">&para;</a></h3>
-<p>Accepted inside each provider block. <code>owner</code>, <code>ownerLabel</code> and <code>region</code> override the shared
-value for that provider only.</p>
+<p>Accepted inside each provider block. <code>owner</code>, <code>ownerLabel</code>, <code>system</code>, <code>systemLabel</code>, <code>namespace</code>,
+<code>region</code>, <code>links</code>, <code>tags</code> and <code>descriptions</code> override the shared value for that provider only.</p>
 <table>
 <thead>
 <tr>
@@ -1283,10 +1726,16 @@ value for that provider only.</p>
 <td>Owner for resources with no owner label</td>
 </tr>
 <tr>
-<td><code>ownerLabel</code></td>
+<td><code>system</code></td>
 <td>string</td>
 <td>inherited</td>
-<td>Label read off a resource to find its owner</td>
+<td>System for resources with no system label</td>
+</tr>
+<tr>
+<td><code>namespace</code></td>
+<td>string</td>
+<td>inherited</td>
+<td>Namespace template for this provider's entities</td>
 </tr>
 <tr>
 <td><code>region</code></td>
@@ -1295,24 +1744,51 @@ value for that provider only.</p>
 <td>Region used when the API reports none</td>
 </tr>
 <tr>
+<td><code>locations</code></td>
+<td>string[]</td>
+<td>all</td>
+<td>Bounds the regions and zones this provider asks about</td>
+</tr>
+<tr>
+<td><code>extraLinks</code></td>
+<td>object[]</td>
+<td><code>[]</code></td>
+<td>Extra <code>{url, title, icon, type}</code> links, templated like <code>namespace</code></td>
+</tr>
+<tr>
 <td><code>stripPrefixes</code></td>
 <td>string[]</td>
 <td><code>[]</code></td>
 <td><strong><code>pubsub</code> only.</strong> Prefixes removed from topic and subscription names</td>
 </tr>
+<tr>
+<td><code>states</code></td>
+<td>string[]</td>
+<td>all</td>
+<td><strong><code>instances</code> only.</strong> Instance states to ingest, e.g. <code>[RUNNING]</code></td>
+</tr>
+<tr>
+<td><code>includeDeprecated</code></td>
+<td>boolean</td>
+<td><code>false</code></td>
+<td><strong><code>images</code> only.</strong> Whether deprecated images are ingested</td>
+</tr>
 </tbody>
 </table>
+<p><code>locations</code> is not <code>region</code>: it narrows which regions and zones are asked about, where <code>region</code> is
+the fallback recorded when the API reports no location at all. A region matches its zones, so
+<code>europe-west1</code> keeps an instance in <code>europe-west1-b</code>.</p>
 <h3 id="turning-a-provider-off">Turning a provider off<a class="headerlink" href="#turning-a-provider-off" title="Permanent link">&para;</a></h3>
 <p><code>enabled</code> defaults to <code>true</code>, so a provider runs as soon as its block exists. Setting it to
 <code>false</code> stops that resource type from being ingested while keeping the configuration you would
 otherwise have to delete and put back:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">catalog</span><span class="p">:</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">providers</span><span class="p">:</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">gcp</span><span class="p">:</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">      </span><span class="nt">clusters</span><span class="p">:</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">catalog</span><span class="p">:</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">providers</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">gcp</span><span class="p">:</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="nt">clusters</span><span class="p">:</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <p>The check runs before the provider is constructed, so a disabled provider builds no GCP client
 and schedules no refresh task.</p>
@@ -1330,31 +1806,31 @@ resource moves it in the catalog without anyone editing Backstage config. The la
   <code>platform-team</code> is read as <code>group:default/platform-team</code>. A value that does name a kind or
   namespace is parsed as the ref it already is.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Cloud Storage</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>update<span class="w"> </span>gs://my-bucket<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--update-labels<span class="o">=</span>backstage_io_owner-ref<span class="o">=</span>platform-team
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># Cloud SQL</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>gcloud<span class="w"> </span>sql<span class="w"> </span>instances<span class="w"> </span>patch<span class="w"> </span>my-instance<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span>--update-labels<span class="o">=</span>backstage_io_owner-ref<span class="o">=</span>platform-team
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1"># Pub/Sub</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>gcloud<span class="w"> </span>pubsub<span class="w"> </span>topics<span class="w"> </span>update<span class="w"> </span>my-topic<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span>--update-labels<span class="o">=</span>backstage_io_owner-ref<span class="o">=</span>platform-team
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="c1"># GKE</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>gcloud<span class="w"> </span>container<span class="w"> </span>clusters<span class="w"> </span>update<span class="w"> </span>my-cluster<span class="w"> </span>--region<span class="o">=</span>europe-west1<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">  </span>--update-labels<span class="o">=</span>backstage_io_owner-ref<span class="o">=</span>platform-team
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Cloud Storage</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>update<span class="w"> </span>gs://my-bucket<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>--update-labels<span class="o">=</span>backstage_io_owner-ref<span class="o">=</span>platform-team
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># Cloud SQL</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>gcloud<span class="w"> </span>sql<span class="w"> </span>instances<span class="w"> </span>patch<span class="w"> </span>my-instance<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span>--update-labels<span class="o">=</span>backstage_io_owner-ref<span class="o">=</span>platform-team
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="c1"># Pub/Sub</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>gcloud<span class="w"> </span>pubsub<span class="w"> </span>topics<span class="w"> </span>update<span class="w"> </span>my-topic<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span>--update-labels<span class="o">=</span>backstage_io_owner-ref<span class="o">=</span>platform-team
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="c1"># GKE</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>gcloud<span class="w"> </span>container<span class="w"> </span>clusters<span class="w"> </span>update<span class="w"> </span>my-cluster<span class="w"> </span>--region<span class="o">=</span>europe-west1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">  </span>--update-labels<span class="o">=</span>backstage_io_owner-ref<span class="o">=</span>platform-team
 </code></pre></div>
 <p>In Terraform the label goes on the resource the same way:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_storage_bucket&quot;</span><span class="w"> </span><span class="nv">&quot;reports&quot;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="na">name</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;my-bucket&quot;</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="na">location</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;EU&quot;</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nb">labels</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="s2">&quot;backstage_io_owner-ref&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;platform-team&quot;</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_storage_bucket&quot;</span><span class="w"> </span><span class="nv">&quot;reports&quot;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="na">name</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;my-bucket&quot;</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="na">location</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;EU&quot;</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nb">labels</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="s2">&quot;backstage_io_owner-ref&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;platform-team&quot;</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">}</span>
 </code></pre></div>
 <p>Where the label is read from, per resource type:</p>
 <table>
@@ -1390,11 +1866,30 @@ resource moves it in the catalog without anyone editing Backstage config. The la
 <td>secret labels</td>
 </tr>
 <tr>
+<td><code>instances</code>, <code>images</code>, <code>dns</code></td>
+<td>resource labels</td>
+</tr>
+<tr>
+<td><code>spanner</code>, <code>redis</code>, <code>alloydb</code>, <code>bigtable</code></td>
+<td>instance or cluster labels</td>
+</tr>
+<tr>
+<td><code>managedkafka</code>, <code>eventarc</code>, <code>run</code>, <code>functions</code>, <code>artifactregistry</code></td>
+<td>resource labels</td>
+</tr>
+<tr>
 <td><code>service-account</code></td>
 <td><strong>none</strong> — IAM service accounts carry no labels</td>
 </tr>
+<tr>
+<td><code>vpc</code>, <code>subnets</code>, <code>firewall</code>, <code>routers</code>, <code>instance-groups</code></td>
+<td><strong>none</strong> — the Compute API has no label field for these</td>
+</tr>
 </tbody>
 </table>
+<p>The same mechanism sets <code>spec.system</code> from <code>systemLabel</code>, defaulting to <code>backstage.io/system-ref</code>
+and written on a resource as <code>backstage_io_system-ref</code>. A resource whose labels name no system
+falls back to <code>system</code> → <code>defaultSystem</code>, and to omitting <code>spec.system</code> when neither is set.</p>
 <p>A resource with no such label falls back to <code>owner</code> → <code>defaultOwner</code> → <code>unknown</code>. The <code>unknown</code>
 fallback is a valid ref, so the catalog still accepts the entity, and an obviously wrong one, so
 unlabelled resources are visible instead of silently misfiled. A label whose value is not a
@@ -1404,6 +1899,19 @@ would reject and failing the whole project's ingestion with it.</p>
 <p>Not every API reports a location for every resource. The region is resolved as the value the
 API returned → this provider's <code>region</code> → <code>defaultRegion</code>. If none of those yields a value the
 <code>cloud.google.com/region</code> annotation is left off rather than filled with a guess.</p>
+<h2 id="metadata">Metadata<a class="headerlink" href="#metadata" title="Permanent link">&para;</a></h2>
+<p>Beyond the name and namespace, every entity carries:</p>
+<ul>
+<li><strong><code>title</code></strong> — the API's display name, or the GCP name when normalizing it into an entity name
+  changed it, so <code>My_Bucket.Name</code> stays visible on the entity ingested as <code>my-bucket-name</code>.</li>
+<li><strong><code>description</code></strong> — the resource's own description, or a generated one-liner such as
+  <code>POSTGRES_15 instance in europe-west1</code>. Turn the fallback off with <code>descriptions: false</code>.</li>
+<li><strong><code>labels</code></strong> — every GCP label the resource carries, minus any the catalog would reject.</li>
+<li><strong><code>links</code></strong> — a console link and a documentation link by default, a Logs Explorer link under
+  <code>links.logs: true</code>, the service URL for Cloud Run and Cloud Functions, and anything configured
+  in <code>extraLinks</code>.</li>
+<li><strong><code>tags</code></strong> — nothing at all unless a source is enabled under <code>tags</code>.</li>
+</ul>
 <h2 id="annotations">Annotations<a class="headerlink" href="#annotations" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1419,11 +1927,27 @@ API returned → this provider's <code>region</code> → <code>defaultRegion</co
 </tr>
 <tr>
 <td><code>cloud.google.com/region</code></td>
-<td>Region or location of the resource</td>
+<td>Region, zone or location of the resource</td>
+</tr>
+<tr>
+<td><code>cloud.google.com/self-link</code></td>
+<td>Canonical GCP URL of the resource</td>
 </tr>
 <tr>
 <td><code>cloud.google.com/service-account</code></td>
 <td>Service account email</td>
+</tr>
+<tr>
+<td><code>cloud.google.com/status</code></td>
+<td>State the API reports, e.g. <code>RUNNING</code>, <code>READY</code></td>
+</tr>
+<tr>
+<td><code>cloud.google.com/vpc-peerings</code></td>
+<td>Names of the peerings configured on a VPC network</td>
+</tr>
+<tr>
+<td><code>cloud.google.com/machine-type</code></td>
+<td>Machine type of a Compute Engine instance</td>
 </tr>
 </tbody>
 </table>
@@ -1431,14 +1955,159 @@ API returned → this provider's <code>region</code> → <code>defaultRegion</co
 reads — API server URL, CA certificate, <code>googleServiceAccount</code> auth provider and the GKE
 dashboard parameters. That is what makes the <code>catalog</code> cluster locator work; see
 <a href="../../guides/gcp-permissions/#gke-and-the-kubernetes-plugin">GKE and the Kubernetes plugin</a>.</p>
-<h2 id="relations">Relations<a class="headerlink" href="#relations" title="Permanent link">&para;</a></h2>
-<p>Two providers infer more than ownership from IAM:</p>
+<h2 id="the-access-graph">The access graph<a class="headerlink" href="#the-access-graph" title="Permanent link">&para;</a></h2>
+<p>Every role a service account holds on a resource becomes a <code>dependsOn</code> relation <strong>on the service
+account entity</strong>. Backstage derives the reverse relation itself, so the database, secret and topic
+gain their <code>dependencyOf</code> edges without their own providers doing anything — which is why IAM is
+declared in exactly one place.</p>
+<p>Policies come from <strong>Cloud Asset Inventory</strong>: one <code>searchAllIamPolicies</code> call per project covers
+every resource in it, cached and shared across providers. Enable <code>cloudasset.googleapis.com</code> and
+grant <code>roles/cloudasset.viewer</code>. Without them everything still ingests; the graph is just flat.</p>
+<h3 id="attaching-a-component">Attaching a Component<a class="headerlink" href="#attaching-a-component" title="Permanent link">&para;</a></h3>
+<p>The <code>workload-identity</code> provider ingests each <code>roles/iam.workloadIdentityUser</code> binding as a
+<code>kubernetes-service-account</code> entity, named <code>&lt;poolProject&gt;-&lt;k8sNamespace&gt;-&lt;ksaName&gt;</code>. A Component
+attaches with one line:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage.io/v1alpha1</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Component</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auth</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">service</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group:default/platform</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="nt">dependsOn</span><span class="p">:</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resource:gcp-prod/prod-auth-auth-sa</span>
+</code></pre></div>
+<p>No cluster credentials are needed: the binding lives in the Google service account's own IAM policy,
+where the member is written <code>serviceAccount:PROJECT.svc.id.goog[namespace/ksa]</code>. Because an identity
+pool belongs to a project rather than to a cluster, the entity relates to every
+Workload-Identity-enabled cluster in that project.</p>
+<h3 id="limits-worth-knowing">Limits worth knowing<a class="headerlink" href="#limits-worth-knowing" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Pub/Sub topics</strong> gain a <code>dependsOn</code> entry per IAM member holding a publisher role, pointing
-  at the matching <code>service-accounts</code> namespace entity. Enable the <code>service-account</code> provider as
-  well for those refs to resolve.</li>
-<li><strong>Pub/Sub subscriptions</strong> depend on their topic.</li>
+<li><strong>Project-level grants produce no edges.</strong> <code>roles/editor</code> on a project reaches everything and
+  names nothing, so it is recorded as a <code>cloud.google.com/iam-project-roles</code> annotation instead. An
+  estate managed through project-level grants will have a sparse graph.</li>
+<li><strong>Edges need the account ingested.</strong> Keep <code>service-account</code> enabled. For the audit view over
+  principals that are not ingested, set <code>iam.annotateResources: true</code>.</li>
+<li><strong>Bindings are not entities.</strong> One per (resource, role) would multiply the catalog several times
+  over on the fastest-changing data in GCP and add a hop to every path. Roles live on the account,
+  in <code>cloud.google.com/iam-roles</code> and <code>cloud.google.com/iam-access</code>.</li>
 </ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">catalog</span><span class="p">:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">providers</span><span class="p">:</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="nt">gcp</span><span class="p">:</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">      </span><span class="nt">iam</span><span class="p">:</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># default</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">        </span><span class="nt">memberTypes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">serviceAccount</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="c1"># default</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">        </span><span class="nt">excludeRoles</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">roles/viewer</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">        </span><span class="nt">maxEdgesPerMember</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span><span class="w"> </span><span class="c1"># default</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">        </span><span class="nt">annotateResources</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w"> </span><span class="c1"># default</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">        </span><span class="nt">cacheTtlSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600</span><span class="w"> </span><span class="c1"># default</span>
+</code></pre></div>
+<h2 id="relations">Relations<a class="headerlink" href="#relations" title="Permanent link">&para;</a></h2>
+<p>Providers relate their entities to what GCP says they depend on. Each ref is built from the
+namespace of the provider that ingests the target, so a relation still resolves when the two
+providers are namespaced differently — but the target provider has to be enabled for the entity
+to exist at all.</p>
+<table>
+<thead>
+<tr>
+<th>From</th>
+<th>Depends on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Subnet, firewall rule, router</td>
+<td>its VPC network</td>
+</tr>
+<tr>
+<td>VPC network</td>
+<td>the networks it is peered with</td>
+</tr>
+<tr>
+<td>Cloud NAT</td>
+<td>its Cloud Router</td>
+</tr>
+<tr>
+<td>Compute instance</td>
+<td>its subnet and its service accounts</td>
+</tr>
+<tr>
+<td>Redis instance, AlloyDB cluster</td>
+<td>the VPC it is attached to</td>
+</tr>
+<tr>
+<td>Kafka cluster</td>
+<td>the subnets its brokers are reachable through</td>
+</tr>
+<tr>
+<td>Spanner / AlloyDB / Kafka child</td>
+<td>its instance, cluster or topic parent</td>
+</tr>
+<tr>
+<td>Pub/Sub subscription</td>
+<td>its topic</td>
+</tr>
+<tr>
+<td>Pub/Sub topic</td>
+<td>the service accounts holding a publisher role</td>
+</tr>
+<tr>
+<td>Eventarc trigger</td>
+<td>its Pub/Sub topic; it is a dependency of its Cloud Run destination</td>
+</tr>
+<tr>
+<td>Scheduler job, Cloud Function</td>
+<td>the Pub/Sub topic it publishes to or is triggered by</td>
+</tr>
+<tr>
+<td>Cloud Run, Functions, Workflows</td>
+<td>the service account it runs as, and its VPC connector</td>
+</tr>
+<tr>
+<td>Kubernetes service account</td>
+<td>the Google account it impersonates, and its GKE clusters</td>
+</tr>
+<tr>
+<td>Google service account</td>
+<td>every resource it holds a resource-level role on</td>
+</tr>
+<tr>
+<td>GKE cluster</td>
+<td>its VPC and subnet</td>
+</tr>
+<tr>
+<td>Cloud SQL instance</td>
+<td>the VPC it is peered with, when it has a private address</td>
+</tr>
+<tr>
+<td>Load balancer</td>
+<td>its URL map → backend services → instance groups</td>
+</tr>
+<tr>
+<td>Delivery pipeline</td>
+<td>its deploy targets → the GKE cluster they deploy to</td>
+</tr>
+<tr>
+<td>KMS key</td>
+<td>its key ring</td>
+</tr>
+<tr>
+<td>Log sink</td>
+<td>the bucket, dataset or topic it exports to</td>
+</tr>
+<tr>
+<td>SLO</td>
+<td>its Monitoring service → the Cloud Run service behind it</td>
+</tr>
+<tr>
+<td>BigQuery transfer</td>
+<td>the dataset it loads into</td>
+</tr>
+</tbody>
+</table>
+<p>Refs to Pub/Sub topics apply the same <code>stripPrefixes</code> the <code>pubsub</code> provider does, so a topic
+ingested as <code>orders</code> is still found by a trigger that names it <code>myorg-orders</code>.</p>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <p><strong>Nothing is ingested.</strong> Check the backend log at startup: the module logs
 <code>No GCP catalog provider configuration found</code> when <code>catalog.providers.gcp</code> is missing, and
@@ -1456,6 +2125,14 @@ more likely, so keep the prefix list to genuine environment prefixes.</p>
 <p><strong>Permission denied in the logs.</strong> The service account is missing a role for that specific API —
 see the <a href="../../guides/gcp-permissions/#permissions-per-provider">permission table</a>. Each provider
 fails independently, so one missing role does not stop the others.</p>
+<p><strong><code>Skipping project … the API is disabled</code> in the logs.</strong> The provider's API is not enabled in
+that project, the project no longer exists, or the credentials cannot read it. The other projects
+are still ingested. Enable the API with
+<code>gcloud services enable compute.googleapis.com --project=my-project</code>, substituting the API for the
+provider in question.</p>
+<p><strong>The catalog churns on every refresh.</strong> Ingesting Compute Engine instances means a full mutation
+per refresh over a set that changes constantly. Narrow it with <code>states: [RUNNING]</code>, bound it with
+<code>locations</code>, and lengthen the <code>schedule</code>.</p>
 
 
 
@@ -1478,7 +2155,7 @@ fails independently, so one missing role does not stop the others.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 2, 2026 11:19:50 UTC">August 2, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 13, 2026 11:40:26 UTC">August 13, 2026</span>
   </span>
 
     

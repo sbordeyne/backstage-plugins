@@ -760,6 +760,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#cloud-asset-inventory-for-the-access-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cloud Asset Inventory, for the access graph
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#one-custom-role" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -974,6 +985,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#cloud-asset-inventory-for-the-access-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cloud Asset Inventory, for the access graph
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#one-custom-role" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1156,8 +1178,9 @@ setup that the Kubernetes plugin needs on top.</p>
 </tbody>
 </table>
 <p>The catalog provider reads <code>GOOGLE_APPLICATION_CREDENTIALS</code> itself and parses the key file; when
-the variable is unset every client falls back to ambient credentials. Nothing else needs to
-change between the two.</p>
+the variable is unset every client falls back to ambient credentials, resolved through
+<code>GoogleAuth</code> — Workload Identity, the metadata server or <code>gcloud</code> application default
+credentials, whichever applies. Nothing else needs to change between the two.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROJECT_ID</span><span class="o">=</span>my-project
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>gcloud<span class="w"> </span>iam<span class="w"> </span>service-accounts<span class="w"> </span>create<span class="w"> </span>backstage<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
@@ -1203,14 +1226,14 @@ mutates anything in GCP.</p>
 </tr>
 <tr>
 <td><code>pubsub</code></td>
-<td>list topics and subscriptions, read topic IAM</td>
-<td><code>pubsub.topics.list</code>, <code>pubsub.topics.get</code>, <code>pubsub.topics.getIamPolicy</code>, <code>pubsub.subscriptions.list</code>, <code>pubsub.subscriptions.get</code></td>
+<td>list topics and subscriptions</td>
+<td><code>pubsub.topics.list</code>, <code>pubsub.topics.get</code>, <code>pubsub.subscriptions.list</code>, <code>pubsub.subscriptions.get</code></td>
 <td><code>roles/pubsub.viewer</code></td>
 </tr>
 <tr>
 <td><code>secretmanager</code></td>
-<td>list secrets, read secret IAM</td>
-<td><code>secretmanager.secrets.list</code>, <code>secretmanager.secrets.get</code>, <code>secretmanager.secrets.getIamPolicy</code></td>
+<td>list secrets</td>
+<td><code>secretmanager.secrets.list</code>, <code>secretmanager.secrets.get</code></td>
 <td><code>roles/secretmanager.viewer</code></td>
 </tr>
 <tr>
@@ -1227,6 +1250,366 @@ mutates anything in GCP.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="cloud-asset-inventory-for-the-access-graph">Cloud Asset Inventory, for the access graph<a class="headerlink" href="#cloud-asset-inventory-for-the-access-graph" title="Permanent link">&para;</a></h3>
+<p>One grant matters more than the rest. The IAM edges — who can reach which resource, and which
+Kubernetes account impersonates which Google one — come from a single
+<code>searchAllIamPolicies</code> call per project, which needs the Cloud Asset API and one role:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>gcloud<span class="w"> </span>services<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>cloudasset.googleapis.com<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>gcloud<span class="w"> </span>projects<span class="w"> </span>add-iam-policy-binding<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>--role<span class="o">=</span>roles/cloudasset.viewer
+</code></pre></div>
+<p>Without it every resource still ingests and the catalog is simply flat: no <code>dependsOn</code> between
+service accounts and the resources they use, and no Workload Identity entities. The provider logs
+one line per project and carries on.</p>
+<p><code>roles/cloudasset.viewer</code> reads policy metadata, not data — it grants no access to the contents of
+any bucket, secret or database it can describe.</p>
+<p>The providers added since, all read-only in the same way:</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>API calls made</th>
+<th>Permissions</th>
+<th>Predefined role equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vpc</code></td>
+<td>list networks</td>
+<td><code>compute.networks.list</code>, <code>compute.networks.get</code></td>
+<td><code>roles/compute.networkViewer</code></td>
+</tr>
+<tr>
+<td><code>subnets</code></td>
+<td>aggregated list of subnetworks</td>
+<td><code>compute.subnetworks.list</code></td>
+<td><code>roles/compute.networkViewer</code></td>
+</tr>
+<tr>
+<td><code>firewall</code></td>
+<td>list firewall rules</td>
+<td><code>compute.firewalls.list</code></td>
+<td><code>roles/compute.networkViewer</code></td>
+</tr>
+<tr>
+<td><code>routers</code></td>
+<td>aggregated list of routers (NAT is nested)</td>
+<td><code>compute.routers.list</code>, <code>compute.routers.get</code></td>
+<td><code>roles/compute.networkViewer</code></td>
+</tr>
+<tr>
+<td><code>dns</code></td>
+<td>list managed zones</td>
+<td><code>dns.managedZones.list</code></td>
+<td><code>roles/dns.reader</code></td>
+</tr>
+<tr>
+<td><code>instances</code></td>
+<td>aggregated list of instances</td>
+<td><code>compute.instances.list</code></td>
+<td><code>roles/compute.viewer</code></td>
+</tr>
+<tr>
+<td><code>instance-groups</code></td>
+<td>aggregated list of instance group managers</td>
+<td><code>compute.instanceGroupManagers.list</code></td>
+<td><code>roles/compute.viewer</code></td>
+</tr>
+<tr>
+<td><code>images</code></td>
+<td>list images</td>
+<td><code>compute.images.list</code>, <code>compute.images.get</code></td>
+<td><code>roles/compute.viewer</code></td>
+</tr>
+<tr>
+<td><code>spanner</code></td>
+<td>list instances and their databases</td>
+<td><code>spanner.instances.list</code>, <code>spanner.databases.list</code></td>
+<td><code>roles/spanner.viewer</code></td>
+</tr>
+<tr>
+<td><code>redis</code></td>
+<td>list instances across locations</td>
+<td><code>redis.instances.list</code>, <code>redis.instances.get</code></td>
+<td><code>roles/redis.viewer</code></td>
+</tr>
+<tr>
+<td><code>alloydb</code></td>
+<td>list clusters and their instances</td>
+<td><code>alloydb.clusters.list</code>, <code>alloydb.instances.list</code></td>
+<td><code>roles/alloydb.viewer</code></td>
+</tr>
+<tr>
+<td><code>bigtable</code></td>
+<td>list instances</td>
+<td><code>bigtable.instances.list</code>, <code>bigtable.instances.get</code></td>
+<td><code>roles/bigtable.viewer</code></td>
+</tr>
+<tr>
+<td><code>firestore</code></td>
+<td>list databases</td>
+<td><code>datastore.databases.list</code>, <code>datastore.databases.get</code></td>
+<td><code>roles/datastore.viewer</code></td>
+</tr>
+<tr>
+<td><code>managedkafka</code></td>
+<td>list clusters and their topics</td>
+<td><code>managedkafka.clusters.list</code>, <code>managedkafka.topics.list</code></td>
+<td><code>roles/managedkafka.viewer</code></td>
+</tr>
+<tr>
+<td><code>eventarc</code></td>
+<td>list triggers</td>
+<td><code>eventarc.triggers.list</code>, <code>eventarc.triggers.get</code></td>
+<td><code>roles/eventarc.viewer</code></td>
+</tr>
+<tr>
+<td><code>cloudtasks</code></td>
+<td>list locations, then queues</td>
+<td><code>cloudtasks.queues.list</code>, <code>cloudtasks.locations.list</code></td>
+<td><code>roles/cloudtasks.viewer</code></td>
+</tr>
+<tr>
+<td><code>scheduler</code></td>
+<td>list locations, then jobs</td>
+<td><code>cloudscheduler.jobs.list</code>, <code>cloudscheduler.locations.list</code></td>
+<td><code>roles/cloudscheduler.viewer</code></td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td>list services and jobs</td>
+<td><code>run.services.list</code>, <code>run.jobs.list</code></td>
+<td><code>roles/run.viewer</code></td>
+</tr>
+<tr>
+<td><code>functions</code></td>
+<td>list functions</td>
+<td><code>cloudfunctions.functions.list</code></td>
+<td><code>roles/cloudfunctions.viewer</code></td>
+</tr>
+<tr>
+<td><code>artifactregistry</code></td>
+<td>list repositories</td>
+<td><code>artifactregistry.repositories.list</code></td>
+<td><code>roles/artifactregistry.reader</code></td>
+</tr>
+</tbody>
+</table>
+<p>And the rest — IAM, load balancing, CI/CD, security, observability, data and ML:</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>API calls made</th>
+<th>Permissions</th>
+<th>Predefined role equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>workload-identity</code></td>
+<td>search IAM policies, list clusters</td>
+<td><code>cloudasset.assets.searchAllIamPolicies</code>, <code>container.clusters.list</code></td>
+<td><code>roles/cloudasset.viewer</code></td>
+</tr>
+<tr>
+<td><code>iam-roles</code></td>
+<td>list custom roles</td>
+<td><code>iam.roles.list</code>, <code>iam.roles.get</code></td>
+<td><code>roles/iam.roleViewer</code></td>
+</tr>
+<tr>
+<td><code>loadbalancers</code></td>
+<td>list forwarding rules, URL maps, backends</td>
+<td><code>compute.forwardingRules.list</code>, <code>compute.urlMaps.list</code>, <code>compute.backendServices.list</code></td>
+<td><code>roles/compute.networkViewer</code></td>
+</tr>
+<tr>
+<td><code>sslcertificates</code></td>
+<td>list SSL certificates</td>
+<td><code>compute.sslCertificates.list</code></td>
+<td><code>roles/compute.networkViewer</code></td>
+</tr>
+<tr>
+<td><code>armor</code></td>
+<td>list security policies</td>
+<td><code>compute.securityPolicies.list</code></td>
+<td><code>roles/compute.networkViewer</code></td>
+</tr>
+<tr>
+<td><code>addresses</code></td>
+<td>list addresses</td>
+<td><code>compute.addresses.list</code>, <code>compute.globalAddresses.list</code></td>
+<td><code>roles/compute.networkViewer</code></td>
+</tr>
+<tr>
+<td><code>vpn</code></td>
+<td>list VPN gateways and tunnels</td>
+<td><code>compute.vpnGateways.list</code>, <code>compute.vpnTunnels.list</code></td>
+<td><code>roles/compute.networkViewer</code></td>
+</tr>
+<tr>
+<td><code>cloudbuild</code></td>
+<td>list triggers</td>
+<td><code>cloudbuild.builds.list</code>, <code>cloudbuild.builds.get</code></td>
+<td><code>roles/cloudbuild.builds.viewer</code></td>
+</tr>
+<tr>
+<td><code>clouddeploy</code></td>
+<td>list pipelines and targets</td>
+<td><code>clouddeploy.deliveryPipelines.list</code>, <code>clouddeploy.targets.list</code></td>
+<td><code>roles/clouddeploy.viewer</code></td>
+</tr>
+<tr>
+<td><code>workflows</code></td>
+<td>list workflows</td>
+<td><code>workflows.workflows.list</code></td>
+<td><code>roles/workflows.viewer</code></td>
+</tr>
+<tr>
+<td><code>composer</code></td>
+<td>list environments</td>
+<td><code>composer.environments.list</code></td>
+<td><code>roles/composer.user</code></td>
+</tr>
+<tr>
+<td><code>dataproc</code></td>
+<td>list clusters per region</td>
+<td><code>dataproc.clusters.list</code></td>
+<td><code>roles/dataproc.viewer</code></td>
+</tr>
+<tr>
+<td><code>kms</code></td>
+<td>list key rings and crypto keys</td>
+<td><code>cloudkms.keyRings.list</code>, <code>cloudkms.cryptoKeys.list</code></td>
+<td><code>roles/cloudkms.viewer</code></td>
+</tr>
+<tr>
+<td><code>certificatemanager</code></td>
+<td>list certificates and maps</td>
+<td><code>certificatemanager.certs.list</code>, <code>certificatemanager.certmaps.list</code></td>
+<td><code>roles/certificatemanager.viewer</code></td>
+</tr>
+<tr>
+<td><code>binaryauthorization</code></td>
+<td>get policy, list attestors</td>
+<td><code>binaryauthorization.policy.get</code>, <code>binaryauthorization.attestors.list</code></td>
+<td><code>roles/binaryauthorization.policyViewer</code></td>
+</tr>
+<tr>
+<td><code>alerts</code></td>
+<td>list alert policies and uptime checks</td>
+<td><code>monitoring.alertPolicies.list</code>, <code>monitoring.uptimeCheckConfigs.list</code></td>
+<td><code>roles/monitoring.viewer</code></td>
+</tr>
+<tr>
+<td><code>slos</code></td>
+<td>list services and SLOs</td>
+<td><code>monitoring.services.list</code>, <code>monitoring.slos.list</code></td>
+<td><code>roles/monitoring.viewer</code></td>
+</tr>
+<tr>
+<td><code>logsinks</code></td>
+<td>list sinks</td>
+<td><code>logging.sinks.list</code></td>
+<td><code>roles/logging.viewer</code></td>
+</tr>
+<tr>
+<td><code>filestore</code></td>
+<td>list instances</td>
+<td><code>file.instances.list</code></td>
+<td><code>roles/file.viewer</code></td>
+</tr>
+<tr>
+<td><code>vpcconnectors</code></td>
+<td>list connectors</td>
+<td><code>vpcaccess.connectors.list</code></td>
+<td><code>roles/vpcaccess.viewer</code></td>
+</tr>
+<tr>
+<td><code>memcache</code></td>
+<td>list instances</td>
+<td><code>memcache.instances.list</code></td>
+<td><code>roles/memcache.viewer</code></td>
+</tr>
+<tr>
+<td><code>appengine</code></td>
+<td>list services</td>
+<td><code>appengine.services.list</code></td>
+<td><code>roles/appengine.appViewer</code></td>
+</tr>
+<tr>
+<td><code>disks</code></td>
+<td>list disks and snapshots</td>
+<td><code>compute.disks.list</code>, <code>compute.snapshots.list</code></td>
+<td><code>roles/compute.viewer</code></td>
+</tr>
+<tr>
+<td><code>bqtransfers</code></td>
+<td>list transfer configs</td>
+<td><code>bigquery.transfers.get</code></td>
+<td><code>roles/bigquery.metadataViewer</code></td>
+</tr>
+<tr>
+<td><code>bqreservations</code></td>
+<td>list reservations</td>
+<td><code>bigquery.reservations.list</code></td>
+<td><code>roles/bigquery.resourceViewer</code></td>
+</tr>
+<tr>
+<td><code>analyticshub</code></td>
+<td>list exchanges and listings</td>
+<td><code>analyticshub.dataExchanges.list</code>, <code>analyticshub.listings.list</code></td>
+<td><code>roles/analyticshub.viewer</code></td>
+</tr>
+<tr>
+<td><code>datastream</code></td>
+<td>list streams</td>
+<td><code>datastream.streams.list</code></td>
+<td><code>roles/datastream.viewer</code></td>
+</tr>
+<tr>
+<td><code>dataplex</code></td>
+<td>list lakes</td>
+<td><code>dataplex.lakes.list</code></td>
+<td><code>roles/dataplex.viewer</code></td>
+</tr>
+<tr>
+<td><code>dataflow</code></td>
+<td>aggregated list of jobs</td>
+<td><code>dataflow.jobs.list</code></td>
+<td><code>roles/dataflow.viewer</code></td>
+</tr>
+<tr>
+<td><code>vertex</code></td>
+<td>list endpoints and models per region</td>
+<td><code>aiplatform.endpoints.list</code>, <code>aiplatform.models.list</code></td>
+<td><code>roles/aiplatform.viewer</code></td>
+</tr>
+<tr>
+<td><code>workbench</code></td>
+<td>list instances</td>
+<td><code>notebooks.instances.list</code></td>
+<td><code>roles/notebooks.viewer</code></td>
+</tr>
+</tbody>
+</table>
+<p>Each of these also needs its <strong>API enabled</strong> in every project the provider enumerates. A project
+whose API is off answers 403 <code>SERVICE_DISABLED</code>, which the provider logs as
+<code>Skipping project … the API is disabled</code> and treats as empty — the other projects are still
+ingested, and no entities are deleted for the ones that answered.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>gcloud<span class="w"> </span>services<span class="w"> </span><span class="nb">enable</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>cloudasset.googleapis.com<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>compute.googleapis.com<span class="w"> </span>dns.googleapis.com<span class="w"> </span>spanner.googleapis.com<span class="w"> </span>redis.googleapis.com<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>alloydb.googleapis.com<span class="w"> </span>bigtableadmin.googleapis.com<span class="w"> </span>firestore.googleapis.com<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span>managedkafka.googleapis.com<span class="w"> </span>eventarc.googleapis.com<span class="w"> </span>cloudtasks.googleapis.com<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span>cloudscheduler.googleapis.com<span class="w"> </span>run.googleapis.com<span class="w"> </span>cloudfunctions.googleapis.com<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>artifactregistry.googleapis.com<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
 <p>Two things worth stating plainly:</p>
 <ul>
 <li><strong>Secret Manager metadata only.</strong> <code>roles/secretmanager.viewer</code> does not include
@@ -1239,72 +1622,194 @@ mutates anything in GCP.</p>
 <h3 id="one-custom-role">One custom role<a class="headerlink" href="#one-custom-role" title="Permanent link">&para;</a></h3>
 <p>The least-privilege option, and the one to prefer: a single custom role covering every provider
 you enable.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># backstage-catalog-reader.yaml</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Backstage catalog reader</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only inventory access for Backstage GCP ingestion</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GA</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nt">includedPermissions</span><span class="p">:</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bigquery.datasets.get</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">storage.buckets.get</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">storage.buckets.list</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudsql.instances.get</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudsql.instances.list</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pubsub.topics.get</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pubsub.topics.list</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pubsub.topics.getIamPolicy</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pubsub.subscriptions.get</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pubsub.subscriptions.list</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secretmanager.secrets.get</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secretmanager.secrets.list</span>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secretmanager.secrets.getIamPolicy</span>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">iam.serviceAccounts.get</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">iam.serviceAccounts.list</span>
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">container.clusters.get</span>
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">container.clusters.list</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># backstage-catalog-reader.yaml</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Backstage catalog reader</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only inventory access for Backstage GCP ingestion</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GA</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nt">includedPermissions</span><span class="p">:</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bigquery.datasets.get</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">storage.buckets.get</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">storage.buckets.list</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudsql.instances.get</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudsql.instances.list</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pubsub.topics.get</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pubsub.topics.list</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pubsub.subscriptions.get</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pubsub.subscriptions.list</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secretmanager.secrets.get</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secretmanager.secrets.list</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">iam.serviceAccounts.get</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">iam.serviceAccounts.list</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">container.clusters.get</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">container.clusters.list</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="w">  </span><span class="c1"># Networking and compute</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.networks.get</span>
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.networks.list</span>
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.subnetworks.list</span>
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.firewalls.list</span>
+<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.routers.get</span>
+<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.routers.list</span>
+<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.instances.list</span>
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.instanceGroupManagers.list</span>
+<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.images.get</span>
+<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.images.list</span>
+<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dns.managedZones.list</span>
+<a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a><span class="w">  </span><span class="c1"># Databases</span>
+<a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">spanner.instances.list</span>
+<a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">spanner.databases.list</span>
+<a id="__codelineno-4-36" name="__codelineno-4-36" href="#__codelineno-4-36"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis.instances.get</span>
+<a id="__codelineno-4-37" name="__codelineno-4-37" href="#__codelineno-4-37"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis.instances.list</span>
+<a id="__codelineno-4-38" name="__codelineno-4-38" href="#__codelineno-4-38"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">alloydb.clusters.list</span>
+<a id="__codelineno-4-39" name="__codelineno-4-39" href="#__codelineno-4-39"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">alloydb.instances.list</span>
+<a id="__codelineno-4-40" name="__codelineno-4-40" href="#__codelineno-4-40"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bigtable.instances.get</span>
+<a id="__codelineno-4-41" name="__codelineno-4-41" href="#__codelineno-4-41"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bigtable.instances.list</span>
+<a id="__codelineno-4-42" name="__codelineno-4-42" href="#__codelineno-4-42"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">datastore.databases.get</span>
+<a id="__codelineno-4-43" name="__codelineno-4-43" href="#__codelineno-4-43"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">datastore.databases.list</span>
+<a id="__codelineno-4-44" name="__codelineno-4-44" href="#__codelineno-4-44"></a><span class="w">  </span><span class="c1"># Messaging and eventing</span>
+<a id="__codelineno-4-45" name="__codelineno-4-45" href="#__codelineno-4-45"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">managedkafka.clusters.list</span>
+<a id="__codelineno-4-46" name="__codelineno-4-46" href="#__codelineno-4-46"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">managedkafka.topics.list</span>
+<a id="__codelineno-4-47" name="__codelineno-4-47" href="#__codelineno-4-47"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">eventarc.triggers.get</span>
+<a id="__codelineno-4-48" name="__codelineno-4-48" href="#__codelineno-4-48"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">eventarc.triggers.list</span>
+<a id="__codelineno-4-49" name="__codelineno-4-49" href="#__codelineno-4-49"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudtasks.queues.list</span>
+<a id="__codelineno-4-50" name="__codelineno-4-50" href="#__codelineno-4-50"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudtasks.locations.list</span>
+<a id="__codelineno-4-51" name="__codelineno-4-51" href="#__codelineno-4-51"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudscheduler.jobs.list</span>
+<a id="__codelineno-4-52" name="__codelineno-4-52" href="#__codelineno-4-52"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudscheduler.locations.list</span>
+<a id="__codelineno-4-53" name="__codelineno-4-53" href="#__codelineno-4-53"></a><span class="w">  </span><span class="c1"># Serverless and artifacts</span>
+<a id="__codelineno-4-54" name="__codelineno-4-54" href="#__codelineno-4-54"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">run.services.list</span>
+<a id="__codelineno-4-55" name="__codelineno-4-55" href="#__codelineno-4-55"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">run.jobs.list</span>
+<a id="__codelineno-4-56" name="__codelineno-4-56" href="#__codelineno-4-56"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudfunctions.functions.list</span>
+<a id="__codelineno-4-57" name="__codelineno-4-57" href="#__codelineno-4-57"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">artifactregistry.repositories.list</span>
+<a id="__codelineno-4-58" name="__codelineno-4-58" href="#__codelineno-4-58"></a><span class="w">  </span><span class="c1"># The access graph</span>
+<a id="__codelineno-4-59" name="__codelineno-4-59" href="#__codelineno-4-59"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudasset.assets.searchAllIamPolicies</span>
+<a id="__codelineno-4-60" name="__codelineno-4-60" href="#__codelineno-4-60"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">iam.roles.get</span>
+<a id="__codelineno-4-61" name="__codelineno-4-61" href="#__codelineno-4-61"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">iam.roles.list</span>
+<a id="__codelineno-4-62" name="__codelineno-4-62" href="#__codelineno-4-62"></a><span class="w">  </span><span class="c1"># Load balancing and the network edge</span>
+<a id="__codelineno-4-63" name="__codelineno-4-63" href="#__codelineno-4-63"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.forwardingRules.list</span>
+<a id="__codelineno-4-64" name="__codelineno-4-64" href="#__codelineno-4-64"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.globalForwardingRules.list</span>
+<a id="__codelineno-4-65" name="__codelineno-4-65" href="#__codelineno-4-65"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.urlMaps.list</span>
+<a id="__codelineno-4-66" name="__codelineno-4-66" href="#__codelineno-4-66"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.backendServices.list</span>
+<a id="__codelineno-4-67" name="__codelineno-4-67" href="#__codelineno-4-67"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.sslCertificates.list</span>
+<a id="__codelineno-4-68" name="__codelineno-4-68" href="#__codelineno-4-68"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.securityPolicies.list</span>
+<a id="__codelineno-4-69" name="__codelineno-4-69" href="#__codelineno-4-69"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.addresses.list</span>
+<a id="__codelineno-4-70" name="__codelineno-4-70" href="#__codelineno-4-70"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.globalAddresses.list</span>
+<a id="__codelineno-4-71" name="__codelineno-4-71" href="#__codelineno-4-71"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.vpnGateways.list</span>
+<a id="__codelineno-4-72" name="__codelineno-4-72" href="#__codelineno-4-72"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.vpnTunnels.list</span>
+<a id="__codelineno-4-73" name="__codelineno-4-73" href="#__codelineno-4-73"></a><span class="w">  </span><span class="c1"># CI/CD and orchestration</span>
+<a id="__codelineno-4-74" name="__codelineno-4-74" href="#__codelineno-4-74"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudbuild.builds.list</span>
+<a id="__codelineno-4-75" name="__codelineno-4-75" href="#__codelineno-4-75"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">clouddeploy.deliveryPipelines.list</span>
+<a id="__codelineno-4-76" name="__codelineno-4-76" href="#__codelineno-4-76"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">clouddeploy.targets.list</span>
+<a id="__codelineno-4-77" name="__codelineno-4-77" href="#__codelineno-4-77"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">workflows.workflows.list</span>
+<a id="__codelineno-4-78" name="__codelineno-4-78" href="#__codelineno-4-78"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">composer.environments.list</span>
+<a id="__codelineno-4-79" name="__codelineno-4-79" href="#__codelineno-4-79"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dataproc.clusters.list</span>
+<a id="__codelineno-4-80" name="__codelineno-4-80" href="#__codelineno-4-80"></a><span class="w">  </span><span class="c1"># Security and keys</span>
+<a id="__codelineno-4-81" name="__codelineno-4-81" href="#__codelineno-4-81"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudkms.keyRings.list</span>
+<a id="__codelineno-4-82" name="__codelineno-4-82" href="#__codelineno-4-82"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudkms.cryptoKeys.list</span>
+<a id="__codelineno-4-83" name="__codelineno-4-83" href="#__codelineno-4-83"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">certificatemanager.certs.list</span>
+<a id="__codelineno-4-84" name="__codelineno-4-84" href="#__codelineno-4-84"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">certificatemanager.certmaps.list</span>
+<a id="__codelineno-4-85" name="__codelineno-4-85" href="#__codelineno-4-85"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">binaryauthorization.policy.get</span>
+<a id="__codelineno-4-86" name="__codelineno-4-86" href="#__codelineno-4-86"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">binaryauthorization.attestors.list</span>
+<a id="__codelineno-4-87" name="__codelineno-4-87" href="#__codelineno-4-87"></a><span class="w">  </span><span class="c1"># Observability</span>
+<a id="__codelineno-4-88" name="__codelineno-4-88" href="#__codelineno-4-88"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">monitoring.alertPolicies.list</span>
+<a id="__codelineno-4-89" name="__codelineno-4-89" href="#__codelineno-4-89"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">monitoring.uptimeCheckConfigs.list</span>
+<a id="__codelineno-4-90" name="__codelineno-4-90" href="#__codelineno-4-90"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">monitoring.services.list</span>
+<a id="__codelineno-4-91" name="__codelineno-4-91" href="#__codelineno-4-91"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">monitoring.slos.list</span>
+<a id="__codelineno-4-92" name="__codelineno-4-92" href="#__codelineno-4-92"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">logging.sinks.list</span>
+<a id="__codelineno-4-93" name="__codelineno-4-93" href="#__codelineno-4-93"></a><span class="w">  </span><span class="c1"># Misc infrastructure, data and ML</span>
+<a id="__codelineno-4-94" name="__codelineno-4-94" href="#__codelineno-4-94"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file.instances.list</span>
+<a id="__codelineno-4-95" name="__codelineno-4-95" href="#__codelineno-4-95"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vpcaccess.connectors.list</span>
+<a id="__codelineno-4-96" name="__codelineno-4-96" href="#__codelineno-4-96"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">memcache.instances.list</span>
+<a id="__codelineno-4-97" name="__codelineno-4-97" href="#__codelineno-4-97"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">appengine.services.list</span>
+<a id="__codelineno-4-98" name="__codelineno-4-98" href="#__codelineno-4-98"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">compute.disks.list</span>
+<a id="__codelineno-4-99" name="__codelineno-4-99" href="#__codelineno-4-99"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bigquery.transfers.get</span>
+<a id="__codelineno-4-100" name="__codelineno-4-100" href="#__codelineno-4-100"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bigquery.reservations.list</span>
+<a id="__codelineno-4-101" name="__codelineno-4-101" href="#__codelineno-4-101"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">analyticshub.dataExchanges.list</span>
+<a id="__codelineno-4-102" name="__codelineno-4-102" href="#__codelineno-4-102"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">datastream.streams.list</span>
+<a id="__codelineno-4-103" name="__codelineno-4-103" href="#__codelineno-4-103"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dataplex.lakes.list</span>
+<a id="__codelineno-4-104" name="__codelineno-4-104" href="#__codelineno-4-104"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dataflow.jobs.list</span>
+<a id="__codelineno-4-105" name="__codelineno-4-105" href="#__codelineno-4-105"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aiplatform.endpoints.list</span>
+<a id="__codelineno-4-106" name="__codelineno-4-106" href="#__codelineno-4-106"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aiplatform.models.list</span>
+<a id="__codelineno-4-107" name="__codelineno-4-107" href="#__codelineno-4-107"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">notebooks.instances.list</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>gcloud<span class="w"> </span>iam<span class="w"> </span>roles<span class="w"> </span>create<span class="w"> </span>backstageCatalogReader<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--file<span class="o">=</span>backstage-catalog-reader.yaml
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>gcloud<span class="w"> </span>projects<span class="w"> </span>add-iam-policy-binding<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>--role<span class="o">=</span><span class="s2">&quot;projects/</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">/roles/backstageCatalogReader&quot;</span>
+<p>Trim the list to the providers you actually enable — every permission here maps to one row of the
+tables above.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>gcloud<span class="w"> </span>iam<span class="w"> </span>roles<span class="w"> </span>create<span class="w"> </span>backstageCatalogReader<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>--file<span class="o">=</span>backstage-catalog-reader.yaml
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>gcloud<span class="w"> </span>projects<span class="w"> </span>add-iam-policy-binding<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span>--role<span class="o">=</span><span class="s2">&quot;projects/</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">/roles/backstageCatalogReader&quot;</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_project_iam_custom_role&quot;</span><span class="w"> </span><span class="nv">&quot;backstage_catalog_reader&quot;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="na">project</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="nv">var.project_id</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="na">role_id</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backstageCatalogReader&quot;</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="na">title</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Backstage catalog reader&quot;</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="na">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Read-only inventory access for Backstage GCP ingestion&quot;</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="na">permissions</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="s2">&quot;bigquery.datasets.get&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="s2">&quot;storage.buckets.get&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="s2">&quot;storage.buckets.list&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">    </span><span class="s2">&quot;cloudsql.instances.get&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="s2">&quot;cloudsql.instances.list&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="s2">&quot;pubsub.topics.get&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="s2">&quot;pubsub.topics.list&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">    </span><span class="s2">&quot;pubsub.topics.getIamPolicy&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">    </span><span class="s2">&quot;pubsub.subscriptions.get&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">    </span><span class="s2">&quot;pubsub.subscriptions.list&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">    </span><span class="s2">&quot;secretmanager.secrets.get&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">    </span><span class="s2">&quot;secretmanager.secrets.list&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">    </span><span class="s2">&quot;secretmanager.secrets.getIamPolicy&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="w">    </span><span class="s2">&quot;iam.serviceAccounts.get&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">    </span><span class="s2">&quot;iam.serviceAccounts.list&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="w">    </span><span class="s2">&quot;container.clusters.get&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="w">    </span><span class="s2">&quot;container.clusters.list&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="p">}</span>
-<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>
-<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a><span class="c1"># One binding per project the provider enumerates.</span>
-<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_project_iam_member&quot;</span><span class="w"> </span><span class="nv">&quot;backstage_catalog_reader&quot;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a><span class="w">  </span><span class="na">for_each</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">toset</span><span class="p">(</span><span class="nv">var.ingested_project_ids</span><span class="p">)</span>
-<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>
-<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a><span class="w">  </span><span class="na">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">each.value</span>
-<a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a><span class="w">  </span><span class="na">role</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="nv">google_project_iam_custom_role.backstage_catalog_reader.id</span>
-<a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a><span class="w">  </span><span class="na">member</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;serviceAccount:${google_service_account.backstage.email}&quot;</span>
-<a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_project_iam_custom_role&quot;</span><span class="w"> </span><span class="nv">&quot;backstage_catalog_reader&quot;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="na">project</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="nv">var.project_id</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="na">role_id</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backstageCatalogReader&quot;</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="na">title</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Backstage catalog reader&quot;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="na">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Read-only inventory access for Backstage GCP ingestion&quot;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="na">permissions</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="s2">&quot;bigquery.datasets.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="s2">&quot;storage.buckets.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="s2">&quot;storage.buckets.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="s2">&quot;cloudsql.instances.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">    </span><span class="s2">&quot;cloudsql.instances.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span><span class="s2">&quot;pubsub.topics.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span><span class="s2">&quot;pubsub.topics.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span><span class="s2">&quot;pubsub.subscriptions.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">    </span><span class="s2">&quot;pubsub.subscriptions.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">    </span><span class="s2">&quot;secretmanager.secrets.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">    </span><span class="s2">&quot;secretmanager.secrets.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="w">    </span><span class="s2">&quot;iam.serviceAccounts.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="w">    </span><span class="s2">&quot;iam.serviceAccounts.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="w">    </span><span class="s2">&quot;container.clusters.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="w">    </span><span class="s2">&quot;container.clusters.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="c1">    # Networking and compute</span>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="w">    </span><span class="s2">&quot;compute.networks.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="w">    </span><span class="s2">&quot;compute.networks.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a><span class="w">    </span><span class="s2">&quot;compute.subnetworks.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a><span class="w">    </span><span class="s2">&quot;compute.firewalls.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a><span class="w">    </span><span class="s2">&quot;compute.routers.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a><span class="w">    </span><span class="s2">&quot;compute.routers.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a><span class="w">    </span><span class="s2">&quot;compute.instances.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a><span class="w">    </span><span class="s2">&quot;compute.instanceGroupManagers.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a><span class="w">    </span><span class="s2">&quot;compute.images.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a><span class="w">    </span><span class="s2">&quot;compute.images.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a><span class="w">    </span><span class="s2">&quot;dns.managedZones.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-35" name="__codelineno-6-35" href="#__codelineno-6-35"></a><span class="c1">    # Databases</span>
+<a id="__codelineno-6-36" name="__codelineno-6-36" href="#__codelineno-6-36"></a><span class="w">    </span><span class="s2">&quot;spanner.instances.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-37" name="__codelineno-6-37" href="#__codelineno-6-37"></a><span class="w">    </span><span class="s2">&quot;spanner.databases.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-38" name="__codelineno-6-38" href="#__codelineno-6-38"></a><span class="w">    </span><span class="s2">&quot;redis.instances.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-39" name="__codelineno-6-39" href="#__codelineno-6-39"></a><span class="w">    </span><span class="s2">&quot;redis.instances.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-40" name="__codelineno-6-40" href="#__codelineno-6-40"></a><span class="w">    </span><span class="s2">&quot;alloydb.clusters.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-41" name="__codelineno-6-41" href="#__codelineno-6-41"></a><span class="w">    </span><span class="s2">&quot;alloydb.instances.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-42" name="__codelineno-6-42" href="#__codelineno-6-42"></a><span class="w">    </span><span class="s2">&quot;bigtable.instances.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-43" name="__codelineno-6-43" href="#__codelineno-6-43"></a><span class="w">    </span><span class="s2">&quot;bigtable.instances.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-44" name="__codelineno-6-44" href="#__codelineno-6-44"></a><span class="w">    </span><span class="s2">&quot;datastore.databases.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-45" name="__codelineno-6-45" href="#__codelineno-6-45"></a><span class="w">    </span><span class="s2">&quot;datastore.databases.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-46" name="__codelineno-6-46" href="#__codelineno-6-46"></a><span class="c1">    # Messaging and eventing</span>
+<a id="__codelineno-6-47" name="__codelineno-6-47" href="#__codelineno-6-47"></a><span class="w">    </span><span class="s2">&quot;managedkafka.clusters.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-48" name="__codelineno-6-48" href="#__codelineno-6-48"></a><span class="w">    </span><span class="s2">&quot;managedkafka.topics.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-49" name="__codelineno-6-49" href="#__codelineno-6-49"></a><span class="w">    </span><span class="s2">&quot;eventarc.triggers.get&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-50" name="__codelineno-6-50" href="#__codelineno-6-50"></a><span class="w">    </span><span class="s2">&quot;eventarc.triggers.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-51" name="__codelineno-6-51" href="#__codelineno-6-51"></a><span class="w">    </span><span class="s2">&quot;cloudtasks.queues.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-52" name="__codelineno-6-52" href="#__codelineno-6-52"></a><span class="w">    </span><span class="s2">&quot;cloudtasks.locations.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-53" name="__codelineno-6-53" href="#__codelineno-6-53"></a><span class="w">    </span><span class="s2">&quot;cloudscheduler.jobs.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-54" name="__codelineno-6-54" href="#__codelineno-6-54"></a><span class="w">    </span><span class="s2">&quot;cloudscheduler.locations.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-55" name="__codelineno-6-55" href="#__codelineno-6-55"></a><span class="c1">    # Serverless and artifacts</span>
+<a id="__codelineno-6-56" name="__codelineno-6-56" href="#__codelineno-6-56"></a><span class="w">    </span><span class="s2">&quot;run.services.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-57" name="__codelineno-6-57" href="#__codelineno-6-57"></a><span class="w">    </span><span class="s2">&quot;run.jobs.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-58" name="__codelineno-6-58" href="#__codelineno-6-58"></a><span class="w">    </span><span class="s2">&quot;cloudfunctions.functions.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-59" name="__codelineno-6-59" href="#__codelineno-6-59"></a><span class="w">    </span><span class="s2">&quot;artifactregistry.repositories.list&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-60" name="__codelineno-6-60" href="#__codelineno-6-60"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-6-61" name="__codelineno-6-61" href="#__codelineno-6-61"></a><span class="p">}</span>
+<a id="__codelineno-6-62" name="__codelineno-6-62" href="#__codelineno-6-62"></a>
+<a id="__codelineno-6-63" name="__codelineno-6-63" href="#__codelineno-6-63"></a><span class="c1"># One binding per project the provider enumerates.</span>
+<a id="__codelineno-6-64" name="__codelineno-6-64" href="#__codelineno-6-64"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_project_iam_member&quot;</span><span class="w"> </span><span class="nv">&quot;backstage_catalog_reader&quot;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-6-65" name="__codelineno-6-65" href="#__codelineno-6-65"></a><span class="w">  </span><span class="na">for_each</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nf">toset</span><span class="p">(</span><span class="nv">var.ingested_project_ids</span><span class="p">)</span>
+<a id="__codelineno-6-66" name="__codelineno-6-66" href="#__codelineno-6-66"></a>
+<a id="__codelineno-6-67" name="__codelineno-6-67" href="#__codelineno-6-67"></a><span class="w">  </span><span class="na">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">each.value</span>
+<a id="__codelineno-6-68" name="__codelineno-6-68" href="#__codelineno-6-68"></a><span class="w">  </span><span class="na">role</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="nv">google_project_iam_custom_role.backstage_catalog_reader.id</span>
+<a id="__codelineno-6-69" name="__codelineno-6-69" href="#__codelineno-6-69"></a><span class="w">  </span><span class="na">member</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;serviceAccount:${google_service_account.backstage.email}&quot;</span>
+<a id="__codelineno-6-70" name="__codelineno-6-70" href="#__codelineno-6-70"></a><span class="p">}</span>
 </code></pre></div>
 <p>The role is defined once, in the project that owns it, and bound in every project listed under a
 provider's <code>projects</code>. A custom role defined at the organization level works the same way and
@@ -1312,18 +1817,32 @@ saves repeating the definition per project.</p>
 <h3 id="predefined-roles-instead">Predefined roles instead<a class="headerlink" href="#predefined-roles-instead" title="Permanent link">&para;</a></h3>
 <p>If custom roles are awkward in your organization, bind the predefined equivalents — accepting
 that <code>storage</code> then needs something broader than it should:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">for</span><span class="w"> </span>ROLE<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>roles/bigquery.metadataViewer<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>roles/cloudsql.viewer<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>roles/pubsub.viewer<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span>roles/secretmanager.viewer<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span>roles/iam.serviceAccountViewer<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span>roles/container.clusterViewer
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="k">do</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span>gcloud<span class="w"> </span>projects<span class="w"> </span>add-iam-policy-binding<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span>--role<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">ROLE</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="k">done</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">for</span><span class="w"> </span>ROLE<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>roles/bigquery.metadataViewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>roles/cloudsql.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span>roles/pubsub.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span>roles/secretmanager.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span>roles/iam.serviceAccountViewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span>roles/container.clusterViewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span>roles/compute.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span>roles/dns.reader<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">  </span>roles/spanner.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">  </span>roles/redis.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">  </span>roles/alloydb.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">  </span>roles/bigtable.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">  </span>roles/datastore.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">  </span>roles/managedkafka.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">  </span>roles/eventarc.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">  </span>roles/cloudtasks.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">  </span>roles/cloudscheduler.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">  </span>roles/run.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">  </span>roles/cloudfunctions.viewer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">  </span>roles/artifactregistry.reader
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="k">do</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="w">  </span>gcloud<span class="w"> </span>projects<span class="w"> </span>add-iam-policy-binding<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">    </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="w">    </span>--role<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">ROLE</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="k">done</span>
 </code></pre></div>
 <h2 id="bucket-access-for-bruno-and-secure-share">Bucket access for Bruno and Secure Share<a class="headerlink" href="#bucket-access-for-bruno-and-secure-share" title="Permanent link">&para;</a></h2>
 <p>Both bucket-backed plugins are granted at the bucket, not the project, so they cannot reach any
@@ -1349,25 +1868,25 @@ other bucket the catalog provider can see.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>add-iam-policy-binding<span class="w"> </span>gs://my-ci-artifacts<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--role<span class="o">=</span>roles/storage.objectViewer
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>add-iam-policy-binding<span class="w"> </span>gs://example-secure-share<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span>--role<span class="o">=</span>roles/storage.objectAdmin
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>add-iam-policy-binding<span class="w"> </span>gs://my-ci-artifacts<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span>--role<span class="o">=</span>roles/storage.objectViewer
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>add-iam-policy-binding<span class="w"> </span>gs://example-secure-share<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span>--role<span class="o">=</span>roles/storage.objectAdmin
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_storage_bucket_iam_member&quot;</span><span class="w"> </span><span class="nv">&quot;bruno_reports&quot;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="na">bucket</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">google_storage_bucket.ci_artifacts.name</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="na">role</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;roles/storage.objectViewer&quot;</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="na">member</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;serviceAccount:${google_service_account.backstage.email}&quot;</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">}</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_storage_bucket_iam_member&quot;</span><span class="w"> </span><span class="nv">&quot;secure_share_chunks&quot;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="na">bucket</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">google_storage_bucket.secure_share.name</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span><span class="na">role</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;roles/storage.objectAdmin&quot;</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">  </span><span class="na">member</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;serviceAccount:${google_service_account.backstage.email}&quot;</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_storage_bucket_iam_member&quot;</span><span class="w"> </span><span class="nv">&quot;bruno_reports&quot;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="na">bucket</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">google_storage_bucket.ci_artifacts.name</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="na">role</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;roles/storage.objectViewer&quot;</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="na">member</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;serviceAccount:${google_service_account.backstage.email}&quot;</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">}</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_storage_bucket_iam_member&quot;</span><span class="w"> </span><span class="nv">&quot;secure_share_chunks&quot;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="na">bucket</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">google_storage_bucket.secure_share.name</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="na">role</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;roles/storage.objectAdmin&quot;</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="na">member</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;serviceAccount:${google_service_account.backstage.email}&quot;</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="p">}</span>
 </code></pre></div>
 <p>Secure Share genuinely needs delete: the purge task removes ciphertext for expired and consumed
 pastes, and without it the bucket accumulates orphaned chunks whose database rows are long gone.</p>
@@ -1377,11 +1896,11 @@ provider only does the first.</p>
 <p>The <code>clusters</code> provider emits a <code>Resource</code> per cluster annotated with the API server URL, the
 cluster CA certificate and <code>kubernetes.io/auth-provider: googleServiceAccount</code>. That is exactly
 what the Kubernetes plugin's <code>catalog</code> cluster locator consumes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">kubernetes</span><span class="p">:</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">serviceLocatorMethod</span><span class="p">:</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">multiTenant</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">clusterLocatorMethods</span><span class="p">:</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">catalog</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">kubernetes</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">serviceLocatorMethod</span><span class="p">:</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">multiTenant</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">clusterLocatorMethods</span><span class="p">:</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">catalog</span>
 </code></pre></div>
 <p>With that in place, cluster entities ingested from GCP become clusters the Kubernetes plugin can
 query — no per-cluster block in <code>app-config.yaml</code>, and a new cluster appears on the next refresh.</p>
@@ -1393,41 +1912,41 @@ query — no per-cluster block in <code>app-config.yaml</code>, and a new cluste
 preference:</p>
 <p><strong>In-cluster RBAC (least privilege).</strong> Bind the service account's email as a Kubernetes user.
 GKE maps a Google identity to a <code>User</code> subject named by its email:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># backstage-reader.yaml</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io/v1</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterRoleBinding</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nt">metadata</span><span class="p">:</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage-reader</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="nt">subjects</span><span class="p">:</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">User</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage@my-project.iam.gserviceaccount.com</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="nt">apiGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="nt">roleRef</span><span class="p">:</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterRole</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">view</span>
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">  </span><span class="nt">apiGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># backstage-reader.yaml</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io/v1</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterRoleBinding</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage-reader</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="nt">subjects</span><span class="p">:</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">User</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage@my-project.iam.gserviceaccount.com</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">    </span><span class="nt">apiGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="nt">roleRef</span><span class="p">:</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">  </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterRole</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">view</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">  </span><span class="nt">apiGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>gcloud<span class="w"> </span>container<span class="w"> </span>clusters<span class="w"> </span>get-credentials<span class="w"> </span>my-cluster<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span>--region<span class="o">=</span>europe-west1<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>backstage-reader.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>gcloud<span class="w"> </span>container<span class="w"> </span>clusters<span class="w"> </span>get-credentials<span class="w"> </span>my-cluster<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>--region<span class="o">=</span>europe-west1<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>backstage-reader.yaml
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;kubernetes_cluster_role_binding&quot;</span><span class="w"> </span><span class="nv">&quot;backstage_reader&quot;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nb">metadata</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="na">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backstage-reader&quot;</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span><span class="nb">subject</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">    </span><span class="na">kind</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;User&quot;</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">    </span><span class="na">name</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="nv">google_service_account.backstage.email</span>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">    </span><span class="na">api_group</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;rbac.authorization.k8s.io&quot;</span>
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">  </span><span class="nb">role_ref</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">    </span><span class="na">kind</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;ClusterRole&quot;</span>
-<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">    </span><span class="na">name</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;view&quot;</span><span class="c1">          # or a narrower custom ClusterRole</span>
-<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">    </span><span class="na">api_group</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;rbac.authorization.k8s.io&quot;</span>
-<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;kubernetes_cluster_role_binding&quot;</span><span class="w"> </span><span class="nv">&quot;backstage_reader&quot;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nb">metadata</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="na">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backstage-reader&quot;</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">  </span><span class="nb">subject</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="na">kind</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;User&quot;</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">    </span><span class="na">name</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="nv">google_service_account.backstage.email</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">    </span><span class="na">api_group</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;rbac.authorization.k8s.io&quot;</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">  </span><span class="nb">role_ref</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="w">    </span><span class="na">kind</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;ClusterRole&quot;</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="w">    </span><span class="na">name</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;view&quot;</span><span class="c1">          # or a narrower custom ClusterRole</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="w">    </span><span class="na">api_group</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;rbac.authorization.k8s.io&quot;</span>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="p">}</span>
 </code></pre></div>
 <p>The built-in <code>view</code> ClusterRole excludes Secrets, which is the right default. Replace it with a
 custom ClusterRole if you want to narrow it further — the Kubernetes plugin reads Deployments,
@@ -1447,67 +1966,94 @@ VPC all resolve that; the catalog entity is not the problem.</p>
 <h2 id="workload-identity">Workload Identity<a class="headerlink" href="#workload-identity" title="Permanent link">&para;</a></h2>
 <p>The keyless option when Backstage itself runs on GKE. Bind the Kubernetes service account
 Backstage runs under to the Google service account:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>gcloud<span class="w"> </span>iam<span class="w"> </span>service-accounts<span class="w"> </span>add-iam-policy-binding<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="s2">&quot;backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span>--role<span class="o">=</span>roles/iam.workloadIdentityUser<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.svc.id.goog[backstage/backstage]&quot;</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>kubectl<span class="w"> </span>annotate<span class="w"> </span>serviceaccount<span class="w"> </span>backstage<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span>--namespace<span class="w"> </span>backstage<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="s2">&quot;iam.gke.io/gcp-service-account=backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>gcloud<span class="w"> </span>iam<span class="w"> </span>service-accounts<span class="w"> </span>add-iam-policy-binding<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="s2">&quot;backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span>--role<span class="o">=</span>roles/iam.workloadIdentityUser<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span>--member<span class="o">=</span><span class="s2">&quot;serviceAccount:</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.svc.id.goog[backstage/backstage]&quot;</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>kubectl<span class="w"> </span>annotate<span class="w"> </span>serviceaccount<span class="w"> </span>backstage<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span>--namespace<span class="w"> </span>backstage<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="w">  </span><span class="s2">&quot;iam.gke.io/gcp-service-account=backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_service_account_iam_member&quot;</span><span class="w"> </span><span class="nv">&quot;backstage_workload_identity&quot;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="na">service_account_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">google_service_account.backstage.name</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="na">role</span><span class="w">               </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;roles/iam.workloadIdentityUser&quot;</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="na">member</span><span class="w">             </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;serviceAccount:${var.project_id}.svc.id.goog[backstage/backstage]&quot;</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="p">}</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;kubernetes_service_account&quot;</span><span class="w"> </span><span class="nv">&quot;backstage&quot;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">  </span><span class="nb">metadata</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">    </span><span class="na">name</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backstage&quot;</span>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">    </span><span class="na">namespace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backstage&quot;</span>
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>
-<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">    </span><span class="nb">annotations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="w">      </span><span class="s2">&quot;iam.gke.io/gcp-service-account&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">google_service_account.backstage.email</span>
-<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;google_service_account_iam_member&quot;</span><span class="w"> </span><span class="nv">&quot;backstage_workload_identity&quot;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="na">service_account_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">google_service_account.backstage.name</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="na">role</span><span class="w">               </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;roles/iam.workloadIdentityUser&quot;</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="na">member</span><span class="w">             </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;serviceAccount:${var.project_id}.svc.id.goog[backstage/backstage]&quot;</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="p">}</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="kr">resource</span><span class="w"> </span><span class="nc">&quot;kubernetes_service_account&quot;</span><span class="w"> </span><span class="nv">&quot;backstage&quot;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">  </span><span class="nb">metadata</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">    </span><span class="na">name</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backstage&quot;</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">    </span><span class="na">namespace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;backstage&quot;</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="w">    </span><span class="nb">annotations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="w">      </span><span class="s2">&quot;iam.gke.io/gcp-service-account&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">google_service_account.backstage.email</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="p">}</span>
 </code></pre></div>
 <p><code>[backstage/backstage]</code> is <code>[namespace/serviceaccount]</code> — both have to match the deployment.
 Leave <code>GOOGLE_APPLICATION_CREDENTIALS</code> unset so the clients pick up the workload identity token.</p>
 <h2 id="key-files-if-you-must">Key files, if you must<a class="headerlink" href="#key-files-if-you-must" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>gcloud<span class="w"> </span>iam<span class="w"> </span>service-accounts<span class="w"> </span>keys<span class="w"> </span>create<span class="w"> </span>backstage-sa.json<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span>--iam-account<span class="o">=</span><span class="s2">&quot;backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>gcloud<span class="w"> </span>iam<span class="w"> </span>service-accounts<span class="w"> </span>keys<span class="w"> </span>create<span class="w"> </span>backstage-sa.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span>--iam-account<span class="o">=</span><span class="s2">&quot;backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span>
 </code></pre></div>
 <p>Mount it as a secret and point the environment variable at the path:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">env</span><span class="p">:</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GOOGLE_APPLICATION_CREDENTIALS</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/var/secrets/gcp/backstage-sa.json</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">env</span><span class="p">:</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GOOGLE_APPLICATION_CREDENTIALS</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/var/secrets/gcp/backstage-sa.json</span>
 </code></pre></div>
 <p>It is a long-lived credential granting read access to your whole inventory — rotate it, keep it
 out of the image, and prefer Workload Identity wherever it is available.</p>
 <h2 id="verifying">Verifying<a class="headerlink" href="#verifying" title="Permanent link">&para;</a></h2>
 <p>Check the grants without deploying anything, by impersonating the service account. This needs
 <code>roles/iam.serviceAccountTokenCreator</code> on it for your own user:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nv">SA</span><span class="o">=</span><span class="s2">&quot;backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>gcloud<span class="w"> </span>sql<span class="w"> </span>instances<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>gcloud<span class="w"> </span>pubsub<span class="w"> </span>topics<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>gcloud<span class="w"> </span>secrets<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>gcloud<span class="w"> </span>container<span class="w"> </span>clusters<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>gcloud<span class="w"> </span>iam<span class="w"> </span>service-accounts<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># BigQuery has no gcloud surface for this; use bq with an impersonated token.</span>
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="nv">CLOUDSDK_AUTH_ACCESS_TOKEN</span><span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span>gcloud<span class="w"> </span>auth<span class="w"> </span>print-access-token<span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="w">  </span>bq<span class="w"> </span>ls<span class="w"> </span>--project_id<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nv">SA</span><span class="o">=</span><span class="s2">&quot;backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>gcloud<span class="w"> </span>storage<span class="w"> </span>buckets<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>gcloud<span class="w"> </span>sql<span class="w"> </span>instances<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>gcloud<span class="w"> </span>pubsub<span class="w"> </span>topics<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>gcloud<span class="w"> </span>secrets<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>gcloud<span class="w"> </span>container<span class="w"> </span>clusters<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>gcloud<span class="w"> </span>iam<span class="w"> </span>service-accounts<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="c1"># BigQuery has no gcloud surface for this; use bq with an impersonated token.</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="nv">CLOUDSDK_AUTH_ACCESS_TOKEN</span><span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span>gcloud<span class="w"> </span>auth<span class="w"> </span>print-access-token<span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="w">  </span>bq<span class="w"> </span>ls<span class="w"> </span>--project_id<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="c1"># Networking and compute</span>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>gcloud<span class="w"> </span>compute<span class="w"> </span>networks<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>gcloud<span class="w"> </span>compute<span class="w"> </span>networks<span class="w"> </span>subnets<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a>gcloud<span class="w"> </span>compute<span class="w"> </span>firewall-rules<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a>gcloud<span class="w"> </span>compute<span class="w"> </span>routers<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a>gcloud<span class="w"> </span>compute<span class="w"> </span>instances<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a>gcloud<span class="w"> </span>compute<span class="w"> </span>instance-groups<span class="w"> </span>managed<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a>gcloud<span class="w"> </span>compute<span class="w"> </span>images<span class="w"> </span>list<span class="w"> </span>--no-standard-images<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a>gcloud<span class="w"> </span>dns<span class="w"> </span>managed-zones<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a>
+<a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a><span class="c1"># Databases</span>
+<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a>gcloud<span class="w"> </span>spanner<span class="w"> </span>instances<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a>gcloud<span class="w"> </span>redis<span class="w"> </span>instances<span class="w"> </span>list<span class="w"> </span>--region<span class="o">=</span>-<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a>gcloud<span class="w"> </span>alloydb<span class="w"> </span>clusters<span class="w"> </span>list<span class="w"> </span>--region<span class="o">=</span>-<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a>gcloud<span class="w"> </span>bigtable<span class="w"> </span>instances<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a>gcloud<span class="w"> </span>firestore<span class="w"> </span>databases<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-30" name="__codelineno-18-30" href="#__codelineno-18-30"></a>
+<a id="__codelineno-18-31" name="__codelineno-18-31" href="#__codelineno-18-31"></a><span class="c1"># Messaging, serverless and artifacts</span>
+<a id="__codelineno-18-32" name="__codelineno-18-32" href="#__codelineno-18-32"></a>gcloud<span class="w"> </span>managed-kafka<span class="w"> </span>clusters<span class="w"> </span>list<span class="w"> </span>--location<span class="o">=</span>-<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-33" name="__codelineno-18-33" href="#__codelineno-18-33"></a>gcloud<span class="w"> </span>eventarc<span class="w"> </span>triggers<span class="w"> </span>list<span class="w"> </span>--location<span class="o">=</span>-<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-34" name="__codelineno-18-34" href="#__codelineno-18-34"></a>gcloud<span class="w"> </span>tasks<span class="w"> </span>queues<span class="w"> </span>list<span class="w"> </span>--location<span class="o">=</span>europe-west1<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-35" name="__codelineno-18-35" href="#__codelineno-18-35"></a>gcloud<span class="w"> </span>scheduler<span class="w"> </span><span class="nb">jobs</span><span class="w"> </span>list<span class="w"> </span>--location<span class="o">=</span>europe-west1<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-36" name="__codelineno-18-36" href="#__codelineno-18-36"></a>gcloud<span class="w"> </span>run<span class="w"> </span>services<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-37" name="__codelineno-18-37" href="#__codelineno-18-37"></a>gcloud<span class="w"> </span>functions<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-18-38" name="__codelineno-18-38" href="#__codelineno-18-38"></a>gcloud<span class="w"> </span>artifacts<span class="w"> </span>repositories<span class="w"> </span>list<span class="w"> </span>--project<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--impersonate-service-account<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SA</span><span class="si">}</span><span class="s2">&quot;</span>
 </code></pre></div>
 <p>Each command maps to one provider. Whichever fails is the provider that will log
-<code>error fetching GCP resources</code> at the same point.</p>
+<code>error fetching GCP resources</code> at the same point — or, for a 403, the narrower
+<code>Skipping project … the API is disabled</code> that leaves the other projects alone.</p>
 <p>For the Kubernetes side, confirm the RBAC binding resolves:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>kubectl<span class="w"> </span>auth<span class="w"> </span>can-i<span class="w"> </span>list<span class="w"> </span>pods<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span>--as<span class="o">=</span><span class="s2">&quot;backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span>--all-namespaces
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>kubectl<span class="w"> </span>auth<span class="w"> </span>can-i<span class="w"> </span>list<span class="w"> </span>pods<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span>--as<span class="o">=</span><span class="s2">&quot;backstage@</span><span class="si">${</span><span class="nv">PROJECT_ID</span><span class="si">}</span><span class="s2">.iam.gserviceaccount.com&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span>--all-namespaces
 </code></pre></div>
 
 
@@ -1531,7 +2077,7 @@ out of the image, and prefer Workload Identity wherever it is available.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 2, 2026 11:19:50 UTC">August 2, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 13, 2026 11:40:26 UTC">August 13, 2026</span>
   </span>
 
     
