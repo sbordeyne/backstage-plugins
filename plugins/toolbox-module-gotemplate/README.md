@@ -3,12 +3,12 @@
 Adds a **Go template playground** to [`@drodil/backstage-plugin-toolbox`][toolbox],
 with a switch between four function sets:
 
-| Set                    | Backed by                                                   |
-| ---------------------- | ----------------------------------------------------------- |
-| **Sprig**              | `github.com/Masterminds/sprig/v3`                            |
-| **Sprout**             | `github.com/go-sprout/sprout` (native registries)            |
-| **Helm**               | `helm.sh/helm/v3/pkg/engine` — helm's actual template engine |
-| **External Secrets**   | `external-secrets/runtime/template/v2`                       |
+| Set                  | Backed by                                                    |
+| -------------------- | ------------------------------------------------------------ |
+| **Sprig**            | `github.com/Masterminds/sprig/v3`                            |
+| **Sprout**           | `github.com/go-sprout/sprout` (native registries)            |
+| **Helm**             | `helm.sh/helm/v3/pkg/engine` — helm's actual template engine |
+| **External Secrets** | `external-secrets/runtime/template/v2`                       |
 
 Templates are rendered by **Go's real `text/template`**, compiled to WebAssembly —
 not by a JavaScript reimplementation. What the playground prints is what the
@@ -119,13 +119,13 @@ version, both pins have to move together.
 
 ## Options
 
-| Control                        | Applies to | Notes                                                          |
-| ------------------------------ | ---------- | -------------------------------------------------------------- |
-| Data format                    | all        | YAML or JSON for the data pane                                  |
-| Left / right delimiter         | all        | e.g. `[[` / `]]` for templates that clash with `{{`             |
-| Missing key                    | all but ESO| `default`, `zero` or `error`; ESO is pinned to `error`           |
-| Release name / namespace       | Helm       | surfaces as `.Release.Name` / `.Release.Namespace`              |
-| Kube version                   | Helm       | surfaces as `.Capabilities.KubeVersion`                         |
+| Control                  | Applies to  | Notes                                                  |
+| ------------------------ | ----------- | ------------------------------------------------------ |
+| Data format              | all         | YAML or JSON for the data pane                         |
+| Left / right delimiter   | all         | e.g. `[[` / `]]` for templates that clash with `{{`    |
+| Missing key              | all but ESO | `default`, `zero` or `error`; ESO is pinned to `error` |
+| Release name / namespace | Helm        | surfaces as `.Release.Name` / `.Release.Namespace`     |
+| Kube version             | Helm        | surfaces as `.Capabilities.KubeVersion`                |
 
 Errors are labelled by phase — **data**, **parse** or **execute** — and a failed
 render still shows whatever was emitted before the failure, which is usually the

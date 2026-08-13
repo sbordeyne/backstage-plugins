@@ -1,8 +1,4 @@
-import {
-  FUNCTION_SETS,
-  FUNCTION_SET_DESCRIPTIONS,
-  FUNCTION_SET_LABELS,
-} from '../../engine';
+import { FUNCTION_SETS, FUNCTION_SET_DESCRIPTIONS, FUNCTION_SET_LABELS } from '../../engine';
 import { SAMPLES } from './samples';
 
 /**
@@ -10,8 +6,7 @@ import { SAMPLES } from './samples';
  * name the constructs a set does *not* support. Only the executable part of the
  * template is meaningful to these assertions.
  */
-const code = (template: string) =>
-  template.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
+const code = (template: string) => template.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
 
 describe('samples', () => {
   it('ships one for every function set', () => {
@@ -38,9 +33,7 @@ describe('samples', () => {
       'sha256sum',
     ];
     for (const name of sprigOnly) {
-      expect(code(SAMPLES.sprout.template)).not.toMatch(
-        new RegExp(`(\\||\\{\\{)\\s*${name}\\b`),
-      );
+      expect(code(SAMPLES.sprout.template)).not.toMatch(new RegExp(`(\\||\\{\\{)\\s*${name}\\b`));
     }
   });
 

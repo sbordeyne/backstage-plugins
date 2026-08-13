@@ -77,10 +77,9 @@ export const FUNCTION_SET_LABELS: Record<FunctionSet, string> = {
 };
 
 export const FUNCTION_SET_DESCRIPTIONS: Record<FunctionSet, string> = {
-  sprig:
-    'Masterminds/sprig v3 on top of Go text/template. The set most tools mean by "sprig functions".',
+  sprig: 'Masterminds/sprig v3 on top of Go text/template. The set most tools mean by "sprig functions".',
   sprout:
-    'go-sprout/sprout v1, sprig\'s successor. Note it renames functions: upper is toUpper, b64enc is base64Encode.',
+    "go-sprout/sprout v1, sprig's successor. Note it renames functions: upper is toUpper, b64enc is base64Encode.",
   helm: "Helm's own template engine: sprig plus include, tpl, required, toYaml, and the .Release / .Capabilities context.",
   eso: "external-secrets-operator's template engine: its PKCS12/JWK/PEM helpers, with the secret exposed as a flat key/value map.",
 };

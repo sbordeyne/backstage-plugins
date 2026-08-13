@@ -32,11 +32,7 @@ function resolveVariant(
   if (active?.variant) return active.variant;
 
   // No explicit selection means the app follows the system preference.
-  if (
-    !themeId &&
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(prefers-color-scheme: dark)').matches
-  ) {
+  if (!themeId && typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
     return 'dark';
   }
   return active?.variant ?? 'light';

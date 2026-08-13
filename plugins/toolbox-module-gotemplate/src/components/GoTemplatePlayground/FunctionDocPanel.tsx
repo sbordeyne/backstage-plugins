@@ -52,7 +52,11 @@ function placeholder(type: string, index: number): string {
   if (bare.startsWith('map[')) return `dict${position}`;
 
   // Drop any package qualifier, e.g. `time.Duration` -> `Duration`.
-  const label = bare.split('.').pop()?.replace(/[^A-Za-z0-9]/g, '') ?? '';
+  const label =
+    bare
+      .split('.')
+      .pop()
+      ?.replace(/[^A-Za-z0-9]/g, '') ?? '';
   return `${label || 'arg'}${position}`;
 }
 
@@ -65,9 +69,7 @@ export function buildUsage(doc: FunctionDoc): string[] {
   const params = parseParams(doc.signature);
   if (params.length === 0) return [`{{ ${doc.name} }}`];
 
-  const args = params.map((p, i) =>
-    p.startsWith('...') ? `${placeholder(p, i)}…` : placeholder(p, i),
-  );
+  const args = params.map((p, i) => (p.startsWith('...') ? `${placeholder(p, i)}…` : placeholder(p, i)));
   const direct = `{{ ${doc.name} ${args.join(' ')} }}`;
 
   const last = args[args.length - 1];
@@ -77,18 +79,13 @@ export function buildUsage(doc: FunctionDoc): string[] {
   return params.length === 1 ? [direct, piped] : [direct, piped];
 }
 
-export const FunctionDocPanel = ({
-  doc,
-  docsUrl,
-  setLabel,
-  onInsert,
-}: Props) => {
+export const FunctionDocPanel = ({ doc, docsUrl, setLabel, onInsert }: Props) => {
   if (!doc) {
     return (
       <div className={styles.doc}>
         <div className={styles.docEmpty}>
-          Pick a function to see its signature and how to call it. Signatures are
-          read from the real Go functions, so they match what the engine accepts.
+          Pick a function to see its signature and how to call it. Signatures are read from the real Go functions, so
+          they match what the engine accepts.
         </div>
       </div>
     );
@@ -108,19 +105,10 @@ export const FunctionDocPanel = ({
       <pre className={styles.docUsage}>{usage.join('\n')}</pre>
 
       <div className={styles.docActions}>
-        <button
-          type="button"
-          className={styles.button}
-          onClick={() => onInsert(doc)}
-        >
+        <button type="button" className={styles.button} onClick={() => onInsert(doc)}>
           Insert into template
         </button>
-        <a
-          className={styles.docLink}
-          href={docsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a className={styles.docLink} href={docsUrl} target="_blank" rel="noopener noreferrer">
           {setLabel} docs ↗
         </a>
       </div>

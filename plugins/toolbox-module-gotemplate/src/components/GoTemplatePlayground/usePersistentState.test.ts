@@ -12,10 +12,7 @@ describe('usePersistentState', () => {
   });
 
   it('restores a previously stored value', () => {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ functionSet: 'helm' }),
-    );
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ functionSet: 'helm' }));
     const { result } = renderHook(() => usePersistentState('functionSet', 'sprig'));
     expect(result.current[0]).toBe('helm');
   });
@@ -55,11 +52,9 @@ describe('usePersistentState', () => {
 
   // Safari's private mode throws on write; losing a draft must not break the UI.
   it('keeps working when storage throws', () => {
-    const setItem = jest
-      .spyOn(Storage.prototype, 'setItem')
-      .mockImplementation(() => {
-        throw new Error('QuotaExceededError');
-      });
+    const setItem = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
 
     const { result } = renderHook(() => usePersistentState('functionSet', 'sprig'));
     expect(() => act(() => result.current[1]('helm'))).not.toThrow();

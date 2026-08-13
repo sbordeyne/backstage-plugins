@@ -11,9 +11,7 @@ describe('parseParams', () => {
 
   // A naive split on "," would cut `map[string]any` in half.
   it('does not split inside a bracketed type', () => {
-    expect(parseParams('merge(map[string]any, []string) map[string]any')).toEqual(
-      ['map[string]any', '[]string'],
-    );
+    expect(parseParams('merge(map[string]any, []string) map[string]any')).toEqual(['map[string]any', '[]string']);
   });
 
   it('keeps the variadic marker', () => {
@@ -50,9 +48,7 @@ describe('buildUsage', () => {
   });
 
   it('names list and map parameters readably', () => {
-    const [direct] = buildUsage(
-      doc('merge', 'merge(map[string]any, []string) map[string]any'),
-    );
+    const [direct] = buildUsage(doc('merge', 'merge(map[string]any, []string) map[string]any'));
     expect(direct).toBe('{{ merge dict1 list2 }}');
   });
 });

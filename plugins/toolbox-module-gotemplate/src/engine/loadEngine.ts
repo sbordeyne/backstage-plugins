@@ -1,9 +1,4 @@
-import type {
-  FunctionCatalog,
-  GoTemplateEngine,
-  RenderRequest,
-  RenderResponse,
-} from './types';
+import type { FunctionCatalog, GoTemplateEngine, RenderRequest, RenderResponse } from './types';
 
 // The Go distribution's loader shim, vendored under src/engine and refreshed by
 // wasm/build.sh so it always matches the compiler that produced the module.
@@ -37,17 +32,13 @@ let enginePromise: Promise<GoTemplateEngine> | undefined;
 async function instantiate(wasmUrl: string): Promise<GoTemplateEngine> {
   const Go = GoRuntime as unknown as GoRuntimeConstructor | undefined;
   if (typeof Go !== 'function') {
-    throw new Error(
-      'the Go runtime shim did not load; wasm_exec.js was likely dropped from the bundle',
-    );
+    throw new Error('the Go runtime shim did not load; wasm_exec.js was likely dropped from the bundle');
   }
   const go = new Go();
 
   const response = await fetch(wasmUrl);
   if (!response.ok) {
-    throw new Error(
-      `could not download the template engine from ${wasmUrl} (HTTP ${response.status})`,
-    );
+    throw new Error(`could not download the template engine from ${wasmUrl} (HTTP ${response.status})`);
   }
 
   // instantiateStreaming compiles off the main thread, but it insists on an
@@ -56,10 +47,7 @@ async function instantiate(wasmUrl: string): Promise<GoTemplateEngine> {
   let instance: WebAssembly.Instance;
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/wasm')) {
-    ({ instance } = await WebAssembly.instantiateStreaming(
-      response,
-      go.importObject,
-    ));
+    ({ instance } = await WebAssembly.instantiateStreaming(response, go.importObject));
   } else {
     const bytes = await response.arrayBuffer();
     ({ instance } = await WebAssembly.instantiate(bytes, go.importObject));
@@ -69,10 +57,7 @@ async function instantiate(wasmUrl: string): Promise<GoTemplateEngine> {
   // signals readiness through this callback instead of us polling for exports.
   const ready = new Promise<void>((resolve, reject) => {
     globalThis.__gotemplateReady = resolve;
-    go.run(instance).then(
-      () => reject(new Error('the template engine exited unexpectedly')),
-      reject,
-    );
+    go.run(instance).then(() => reject(new Error('the template engine exited unexpectedly')), reject);
   });
   await ready;
 
@@ -83,10 +68,8 @@ async function instantiate(wasmUrl: string): Promise<GoTemplateEngine> {
   }
 
   return {
-    render: (request: RenderRequest): RenderResponse =>
-      JSON.parse(render(JSON.stringify(request))) as RenderResponse,
-    functions: (): FunctionCatalog =>
-      JSON.parse(functions()) as FunctionCatalog,
+    render: (request: RenderRequest): RenderResponse => JSON.parse(render(JSON.stringify(request))) as RenderResponse,
+    functions: (): FunctionCatalog => JSON.parse(functions()) as FunctionCatalog,
   };
 }
 

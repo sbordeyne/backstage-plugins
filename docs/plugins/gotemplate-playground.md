@@ -15,12 +15,12 @@ just as importantly, the error text — matches what the corresponding tool prod
 The sets are not interchangeable, and most of the value of the tool is in showing where they
 diverge.
 
-| Set                  | Backed by                                                    | Distinctive behaviour                                                                       |
-| -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| **Sprig**            | `github.com/Masterminds/sprig/v3`                             | The baseline most tools mean by "sprig functions"                                             |
-| **Sprout**           | `github.com/go-sprout/sprout`                                 | Renamed nearly everything: `toUpper`, `base64Encode`, `toKebabCase`. Adds a network registry |
-| **Helm**             | `helm.sh/helm/v3/pkg/engine`                                  | Drops `env`/`expandenv`; adds `include`, `tpl`, `required`, `toYaml`, `.Release`, `.Chart`    |
-| **External Secrets** | `external-secrets/runtime/template/v2`                        | Flat `map[string]string` context, forced `missingkey=error`, PKCS12/JWK/PEM helpers           |
+| Set                  | Backed by                              | Distinctive behaviour                                                                        |
+| -------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Sprig**            | `github.com/Masterminds/sprig/v3`      | The baseline most tools mean by "sprig functions"                                            |
+| **Sprout**           | `github.com/go-sprout/sprout`          | Renamed nearly everything: `toUpper`, `base64Encode`, `toKebabCase`. Adds a network registry |
+| **Helm**             | `helm.sh/helm/v3/pkg/engine`           | Drops `env`/`expandenv`; adds `include`, `tpl`, `required`, `toYaml`, `.Release`, `.Chart`   |
+| **External Secrets** | `external-secrets/runtime/template/v2` | Flat `map[string]string` context, forced `missingkey=error`, PKCS12/JWK/PEM helpers          |
 
 !!! warning "Sprout is not a drop-in replacement for sprig"
 
@@ -88,13 +88,13 @@ misconfigured server is slower rather than broken.
 
 ## Options
 
-| Control                  | Applies to   | Effect                                                       |
-| ------------------------ | ------------ | ------------------------------------------------------------ |
-| Data format              | all          | Reads the data pane as YAML or JSON                           |
-| Left / right delimiter   | all          | For templates that clash with `{{`, e.g. `[[` and `]]`        |
-| Missing key              | all but ESO  | `default`, `zero` or `error`                                  |
-| Release name, namespace  | helm         | Populates `.Release.Name` and `.Release.Namespace`            |
-| Kube version             | helm         | Populates `.Capabilities.KubeVersion`                         |
+| Control                 | Applies to  | Effect                                                 |
+| ----------------------- | ----------- | ------------------------------------------------------ |
+| Data format             | all         | Reads the data pane as YAML or JSON                    |
+| Left / right delimiter  | all         | For templates that clash with `{{`, e.g. `[[` and `]]` |
+| Missing key             | all but ESO | `default`, `zero` or `error`                           |
+| Release name, namespace | helm        | Populates `.Release.Name` and `.Release.Namespace`     |
+| Kube version            | helm        | Populates `.Capabilities.KubeVersion`                  |
 
 The missing-key control is disabled on the external-secrets tab: the operator hardcodes
 `missingkey=error`, and letting it be relaxed here would make a template that fails in-cluster

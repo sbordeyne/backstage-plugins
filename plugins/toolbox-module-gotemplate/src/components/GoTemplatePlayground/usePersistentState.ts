@@ -13,10 +13,7 @@ const STORAGE_KEY = 'gotemplate-playground.v1';
  * and some deployments disable it altogether. A playground losing its draft is
  * an annoyance, not a reason to fail to render, so every access is guarded.
  */
-export function usePersistentState<T>(
-  field: string,
-  initial: T,
-): [T, (next: T | ((current: T) => T)) => void] {
+export function usePersistentState<T>(field: string, initial: T): [T, (next: T | ((current: T) => T)) => void] {
   const [value, setValue] = useState<T>(() => readField(field, initial));
 
   // Persist on change rather than on every set call, so a burst of keystrokes
@@ -29,9 +26,7 @@ export function usePersistentState<T>(
   }, [field, value]);
 
   const set = useCallback((next: T | ((current: T) => T)) => {
-    setValue(current =>
-      typeof next === 'function' ? (next as (c: T) => T)(current) : next,
-    );
+    setValue(current => (typeof next === 'function' ? (next as (c: T) => T)(current) : next));
   }, []);
 
   return [value, set];

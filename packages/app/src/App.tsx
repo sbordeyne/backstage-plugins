@@ -1,10 +1,6 @@
 import { createApp } from '@backstage/frontend-defaults';
 import { PageBlueprint } from '@backstage/frontend-plugin-api';
-import {
-  compatWrapper,
-  convertLegacyPlugin,
-  convertLegacyRouteRef,
-} from '@backstage/core-compat-api';
+import { compatWrapper, convertLegacyPlugin, convertLegacyRouteRef } from '@backstage/core-compat-api';
 import { convertLegacyEntityContentExtension } from '@backstage/plugin-catalog-react/alpha';
 
 import catalogPlugin from '@backstage/plugin-catalog/alpha';
@@ -35,10 +31,7 @@ import {
   integratedRepositoriesPlugin,
   IntegratedRepositoriesPage,
 } from '@sbordeyne/backstage-plugin-integrated-repositories';
-import {
-  brunoPlugin,
-  EntityBrunoContent,
-} from '@sbordeyne/backstage-plugin-bruno';
+import { brunoPlugin, EntityBrunoContent } from '@sbordeyne/backstage-plugin-bruno';
 
 import ShareIcon from '@material-ui/icons/Share';
 import StorageIcon from '@material-ui/icons/Storage';
@@ -65,25 +58,20 @@ const convertedSecureShare = convertLegacyPlugin(secureSharePlugin, {
   ],
 });
 
-const convertedIntegratedRepositories = convertLegacyPlugin(
-  integratedRepositoriesPlugin,
-  {
-    extensions: [
-      PageBlueprint.make({
-        name: 'root',
-        params: {
-          path: '/integrated-repositories',
-          title: 'Repositories',
-          icon: <StorageIcon />,
-          routeRef: convertLegacyRouteRef(
-            integratedRepositoriesPlugin.routes.root,
-          ),
-          loader: async () => compatWrapper(<IntegratedRepositoriesPage />),
-        },
-      }),
-    ],
-  },
-);
+const convertedIntegratedRepositories = convertLegacyPlugin(integratedRepositoriesPlugin, {
+  extensions: [
+    PageBlueprint.make({
+      name: 'root',
+      params: {
+        path: '/integrated-repositories',
+        title: 'Repositories',
+        icon: <StorageIcon />,
+        routeRef: convertLegacyRouteRef(integratedRepositoriesPlugin.routes.root),
+        loader: async () => compatWrapper(<IntegratedRepositoriesPage />),
+      },
+    }),
+  ],
+});
 
 // Bruno contributes an entity tab rather than a standalone page, so it needs the
 // catalog's content conversion instead of the page one.

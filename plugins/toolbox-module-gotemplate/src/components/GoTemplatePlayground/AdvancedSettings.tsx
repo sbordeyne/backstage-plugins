@@ -16,10 +16,7 @@ export interface AdvancedSettingsValue {
 
 interface Props {
   value: AdvancedSettingsValue;
-  onChange: <K extends keyof AdvancedSettingsValue>(
-    key: K,
-    next: AdvancedSettingsValue[K],
-  ) => void;
+  onChange: <K extends keyof AdvancedSettingsValue>(key: K, next: AdvancedSettingsValue[K]) => void;
   /** Helm-only fields are hidden for the other sets. */
   showHelmFields: boolean;
   /** external-secrets pins missingkey=error, so the control is locked there. */
@@ -31,13 +28,7 @@ interface Props {
  * These settings are rarely touched, so they live behind a menu rather than
  * taking up a permanent row above the editors.
  */
-export const AdvancedSettings = ({
-  value,
-  onChange,
-  showHelmFields,
-  missingKeyLocked,
-  onReset,
-}: Props) => {
+export const AdvancedSettings = ({ value, onChange, showHelmFields, missingKeyLocked, onReset }: Props) => {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
 
@@ -98,14 +89,8 @@ export const AdvancedSettings = ({
                 className={styles.select}
                 value={missingKeyLocked ? 'error' : value.missingKey}
                 disabled={missingKeyLocked}
-                title={
-                  missingKeyLocked
-                    ? 'external-secrets always renders with missingkey=error'
-                    : undefined
-                }
-                onChange={e =>
-                  onChange('missingKey', e.target.value as MissingKeyMode)
-                }
+                title={missingKeyLocked ? 'external-secrets always renders with missingkey=error' : undefined}
+                onChange={e => onChange('missingKey', e.target.value as MissingKeyMode)}
               >
                 {MISSING_KEY_MODES.map(mode => (
                   <option key={mode} value={mode}>
@@ -168,14 +153,13 @@ export const AdvancedSettings = ({
 
           {missingKeyLocked && (
             <p className={styles.fieldHint}>
-              external-secrets renders with <code>missingkey=error</code>, so a
-              missing key always fails here — as it would in the operator.
+              external-secrets renders with <code>missingkey=error</code>, so a missing key always fails here — as it
+              would in the operator.
             </p>
           )}
 
           <p className={styles.fieldHint}>
-            Your templates, data and these settings are kept in this browser and
-            restored when you come back.
+            Your templates, data and these settings are kept in this browser and restored when you come back.
           </p>
 
           <div className={styles.advancedActions}>

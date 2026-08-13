@@ -19,9 +19,7 @@ const DEFAULT_WASM_URL = `https://cdn.jsdelivr.net/npm/${PACKAGE_NAME}@${PACKAGE
  */
 export function useWasmUrl(): string {
   const config = useApi(configApiRef);
-  return (
-    config.getOptionalString('gotemplate.wasmUrl') ?? DEFAULT_WASM_URL
-  );
+  return config.getOptionalString('gotemplate.wasmUrl') ?? DEFAULT_WASM_URL;
 }
 
 export interface EngineState {

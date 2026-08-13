@@ -9,10 +9,7 @@ import {
 } from '../../engine';
 import type { FunctionDoc, FunctionSet, RenderResponse } from '../../engine';
 import { FunctionReference } from './FunctionReference';
-import {
-  AdvancedSettings,
-  type AdvancedSettingsValue,
-} from './AdvancedSettings';
+import { AdvancedSettings, type AdvancedSettingsValue } from './AdvancedSettings';
 import { buildUsage } from './FunctionDocPanel';
 import { SAMPLES } from './samples';
 import { clearPersistedState, usePersistentState } from './usePersistentState';
@@ -60,19 +57,10 @@ export const GoTemplatePlayground = () => {
   const wasmUrl = useWasmUrl();
   const editorTheme = useEditorTheme();
 
-  const [functionSet, setFunctionSet] = usePersistentState<FunctionSet>(
-    'functionSet',
-    'sprig',
-  );
+  const [functionSet, setFunctionSet] = usePersistentState<FunctionSet>('functionSet', 'sprig');
   const [drafts, setDrafts] = usePersistentState<Drafts>('drafts', INITIAL_DRAFTS);
-  const [advanced, setAdvanced] = usePersistentState<AdvancedSettingsValue>(
-    'advanced',
-    DEFAULT_ADVANCED,
-  );
-  const [outputCollapsed, setOutputCollapsed] = usePersistentState(
-    'outputCollapsed',
-    false,
-  );
+  const [advanced, setAdvanced] = usePersistentState<AdvancedSettingsValue>('advanced', DEFAULT_ADVANCED);
+  const [outputCollapsed, setOutputCollapsed] = usePersistentState('outputCollapsed', false);
 
   // A draft written by an older version may be missing a set that has since
   // been added, so fall back rather than handing undefined to the editor.
@@ -95,10 +83,8 @@ export const GoTemplatePlayground = () => {
   );
 
   const setAdvancedField = useCallback(
-    <K extends keyof AdvancedSettingsValue>(
-      key: K,
-      next: AdvancedSettingsValue[K],
-    ) => setAdvanced(current => ({ ...current, [key]: next })),
+    <K extends keyof AdvancedSettingsValue>(key: K, next: AdvancedSettingsValue[K]) =>
+      setAdvanced(current => ({ ...current, [key]: next })),
     [setAdvanced],
   );
 
@@ -139,9 +125,7 @@ export const GoTemplatePlayground = () => {
   const insertFunction = useCallback(
     (fn: FunctionDoc) => {
       const [usage] = buildUsage(fn);
-      const line = usage
-        .replace(/^\{\{/, advanced.leftDelim)
-        .replace(/\}\}$/, advanced.rightDelim);
+      const line = usage.replace(/^\{\{/, advanced.leftDelim).replace(/\}\}$/, advanced.rightDelim);
       setDraftField('template', `${template}\n${line}`);
     },
     [advanced.leftDelim, advanced.rightDelim, setDraftField, template],
@@ -152,10 +136,9 @@ export const GoTemplatePlayground = () => {
       <div className={styles.loading}>
         <div className={styles.loadingTitle}>Starting the Go template engine…</div>
         <p className={styles.loadingHint}>
-          Downloading the WebAssembly build of Go’s{' '}
-          <code className={styles.code}>text/template</code> with the sprig,
-          sprout, helm and external-secrets function sets. It is a large one-time
-          download and is cached by the browser afterwards.
+          Downloading the WebAssembly build of Go’s <code className={styles.code}>text/template</code> with the sprig,
+          sprout, helm and external-secrets function sets. It is a large one-time download and is cached by the browser
+          afterwards.
         </p>
       </div>
     );
@@ -169,11 +152,9 @@ export const GoTemplatePlayground = () => {
           {loadError.message}
           <br />
           <br />
-          It was fetched from <code className={styles.code}>{wasmUrl}</code>. If
-          your Backstage deployment blocks public CDNs, host{' '}
-          <code className={styles.code}>gotemplate.wasm</code> yourself and set{' '}
-          <code className={styles.code}>gotemplate.wasmUrl</code> in your
-          app-config.
+          It was fetched from <code className={styles.code}>{wasmUrl}</code>. If your Backstage deployment blocks public
+          CDNs, host <code className={styles.code}>gotemplate.wasm</code> yourself and set{' '}
+          <code className={styles.code}>gotemplate.wasmUrl</code> in your app-config.
         </p>
       </div>
     );
@@ -189,9 +170,7 @@ export const GoTemplatePlayground = () => {
               type="button"
               role="tab"
               aria-selected={set === functionSet}
-              className={`${styles.setTab} ${
-                set === functionSet ? styles.setTabActive : ''
-              }`}
+              className={`${styles.setTab} ${set === functionSet ? styles.setTabActive : ''}`}
               onClick={() => setFunctionSet(set)}
             >
               {FUNCTION_SET_LABELS[set]}
@@ -208,21 +187,11 @@ export const GoTemplatePlayground = () => {
         />
       </div>
 
-      <p className={styles.setDescription}>
-        {FUNCTION_SET_DESCRIPTIONS[functionSet]}
-      </p>
+      <p className={styles.setDescription}>{FUNCTION_SET_DESCRIPTIONS[functionSet]}</p>
 
-      <FunctionReference
-        functions={functions}
-        functionSet={functionSet}
-        onInsert={insertFunction}
-      />
+      <FunctionReference functions={functions} functionSet={functionSet} onInsert={insertFunction} />
 
-      <div
-        className={`${styles.workspace} ${
-          outputCollapsed ? styles.workspaceCollapsed : ''
-        }`}
-      >
+      <div className={`${styles.workspace} ${outputCollapsed ? styles.workspaceCollapsed : ''}`}>
         <div className={styles.pane}>
           <div className={styles.paneHeader}>
             <span>Template</span>
@@ -251,18 +220,14 @@ export const GoTemplatePlayground = () => {
             title="Expand output"
           >
             <span className={styles.outputCollapsedLabel}>Output</span>
-            {result?.error && (
-              <span className={styles.outputCollapsedBadge}>error</span>
-            )}
+            {result?.error && <span className={styles.outputCollapsedBadge}>error</span>}
           </button>
         ) : (
           <div className={styles.pane}>
             <div className={styles.paneHeader}>
               <span>Output</span>
               <span className={styles.paneHeaderActions}>
-                <span className={styles.status}>
-                  {result ? `${result.durationMs}ms` : ''}
-                </span>
+                <span className={styles.status}>{result ? `${result.durationMs}ms` : ''}</span>
                 <button
                   type="button"
                   className={styles.collapseButton}
@@ -287,9 +252,7 @@ export const GoTemplatePlayground = () => {
                 result.output
               ) : (
                 <span className={styles.outputEmpty}>
-                  {result?.error
-                    ? 'No output was produced.'
-                    : 'Output appears here as you type.'}
+                  {result?.error ? 'No output was produced.' : 'Output appears here as you type.'}
                 </span>
               )}
             </pre>
