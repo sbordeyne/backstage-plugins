@@ -4,6 +4,10 @@
   "license": "Apache-2.0",
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "plugins/integrated-repositories"
+  },
   "publishConfig": {
     "access": "public",
     "main": "dist/index.esm.js",
@@ -11,7 +15,10 @@
   },
   "backstage": {
     "role": "frontend-plugin",
-    "pluginId": "integrated-repositories"
+    "pluginId": "integrated-repositories",
+    "pluginPackages": [
+      "@sbordeyne/backstage-plugin-integrated-repositories"
+    ]
   },
   "configSchema": "config.d.ts",
   "sideEffects": false,

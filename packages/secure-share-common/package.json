@@ -9,6 +9,10 @@
     "main": "dist/index.cjs.js",
     "types": "dist/index.d.ts"
   },
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "packages/secure-share-common"
+  },
   "backstage": {
     "role": "common-library"
   },

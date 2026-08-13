@@ -9,9 +9,17 @@
     "main": "dist/index.cjs.js",
     "types": "dist/index.d.ts"
   },
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "plugins/secure-share-backend"
+  },
   "backstage": {
     "role": "backend-plugin",
-    "pluginId": "secure-share"
+    "pluginId": "secure-share",
+    "pluginPackages": [
+      "@sbordeyne/backstage-plugin-secure-share",
+      "@sbordeyne/backstage-plugin-secure-share-backend"
+    ]
   },
   "configSchema": "config.d.ts",
   "scripts": {

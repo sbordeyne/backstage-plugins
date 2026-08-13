@@ -10,9 +10,14 @@
     "main": "dist/index.esm.js",
     "types": "dist/index.d.ts"
   },
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "plugins/toolbox-module-gotemplate"
+  },
   "backstage": {
     "role": "frontend-plugin-module",
-    "pluginId": "toolbox"
+    "pluginId": "toolbox",
+    "pluginPackage": "@drodil/backstage-plugin-toolbox"
   },
   "configSchema": "config.d.ts",
   "sideEffects": false,

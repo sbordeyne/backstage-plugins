@@ -9,9 +9,17 @@
     "main": "dist/index.esm.js",
     "types": "dist/index.d.ts"
   },
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "plugins/bruno"
+  },
   "backstage": {
     "role": "frontend-plugin",
-    "pluginId": "bruno"
+    "pluginId": "bruno",
+    "pluginPackages": [
+      "@sbordeyne/backstage-plugin-bruno",
+      "@sbordeyne/backstage-plugin-bruno-backend"
+    ]
   },
   "sideEffects": false,
   "scripts": {

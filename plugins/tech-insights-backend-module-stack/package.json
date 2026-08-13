@@ -10,9 +10,14 @@
     "main": "dist/index.cjs.js",
     "types": "dist/index.d.ts"
   },
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "plugins/tech-insights-backend-module-stack"
+  },
   "backstage": {
     "role": "backend-plugin-module",
-    "pluginId": "tech-insights"
+    "pluginId": "tech-insights",
+    "pluginPackage": "@backstage-community/plugin-tech-insights-backend"
   },
   "scripts": {
     "start": "backstage-cli package start",

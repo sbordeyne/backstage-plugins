@@ -9,9 +9,17 @@
     "main": "dist/index.cjs.js",
     "types": "dist/index.d.ts"
   },
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "plugins/bruno-backend"
+  },
   "backstage": {
     "role": "backend-plugin",
-    "pluginId": "bruno"
+    "pluginId": "bruno",
+    "pluginPackages": [
+      "@sbordeyne/backstage-plugin-bruno",
+      "@sbordeyne/backstage-plugin-bruno-backend"
+    ]
   },
   "configSchema": "config.d.ts",
   "scripts": {
