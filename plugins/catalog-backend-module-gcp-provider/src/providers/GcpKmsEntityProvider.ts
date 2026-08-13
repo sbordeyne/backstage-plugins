@@ -55,7 +55,7 @@ export class GcpKmsEntityProvider extends GcpRestEntityProvider<cloudkms_v1.Clou
           ...(key.nextRotationTime ? { 'cloud.google.com/next-rotation': key.nextRotationTime } : {}),
         },
       },
-      { dependsOn: [ringRef] },
+      { partOf: [ringRef] },
     );
   }
 

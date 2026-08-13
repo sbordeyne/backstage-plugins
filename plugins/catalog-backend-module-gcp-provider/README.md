@@ -351,6 +351,60 @@ catalog:
         annotateResources: false # default
 ```
 
+### Relation vocabulary
+
+By default every edge is `dependsOn` / `dependencyOf`, which is what the catalog and its graph views
+have always understood. Setting `iam.relations: gcp` names each edge after what it actually is:
+
+```yaml
+catalog:
+  providers:
+    gcp:
+      iam:
+        relations: gcp # builtin (default) | gcp
+```
+
+IAM edges take the verb the role grants, classified by role suffix so a role this module has never
+heard of still lands somewhere sensible:
+
+| Role                                         | On the service account | On the resource  |
+| -------------------------------------------- | ---------------------- | ---------------- |
+| `roles/pubsub.publisher`                     | `publisherTo`          | `publishedToBy`  |
+| `roles/pubsub.subscriber`                    | `subscriberOf`         | `subscribedBy`   |
+| `roles/run.invoker`                          | `invokerOf`            | `invokedBy`      |
+| `roles/cloudsql.client`                      | `clientOf`             | `connectedToBy`  |
+| `roles/cloudkms.cryptoKeyEncrypter…`         | `encrypterOf`          | `encryptedBy`    |
+| `roles/secretmanager.secretAccessor`         | `accessorOf`           | `accessedBy`     |
+| anything `.admin` or `.owner`                | `adminOf`              | `administeredBy` |
+| anything `.editor`, `.writer`, `.dataEditor` | `writerOf`             | `writtenBy`      |
+| anything `.viewer` or `.reader`              | `readerOf`             | `readBy`         |
+| anything else                                | `userOf`               | `usedBy`         |
+
+An account holding several roles on one resource gets **one** relation, the strongest: `adminOf` and
+`readerOf` on the same bucket says nothing that `adminOf` does not.
+
+Structural edges are typed too. Containment reuses Backstage's own `partOf` / `hasPart` — a Spanner
+database really is part of its instance — and attachment gets a pair of its own, because a GKE
+cluster is plugged into its subnet rather than being part of it:
+
+| Edge                                                    | In `gcp` mode                |
+| ------------------------------------------------------- | ---------------------------- |
+| Spanner database → instance, AlloyDB instance → cluster | `partOf` / `hasPart`         |
+| Kafka topic → cluster, KMS key → ring, SLO → service    | `partOf` / `hasPart`         |
+| Cloud NAT → router, Analytics Hub listing → exchange    | `partOf` / `hasPart`         |
+| GKE cluster, VM, Composer, Dataproc → VPC or subnet     | `attachedTo` / `hasAttached` |
+| Redis, Memcached, Filestore, VPC connector → VPC        | `attachedTo` / `hasAttached` |
+| VPC → its peers, subnet and firewall rule → VPC         | `attachedTo` / `hasAttached` |
+
+Everything else — a scheduler job and its topic, a log sink and its destination, a load balancer and
+its backends — stays `dependsOn`, because that is what those genuinely are.
+
+**The trade.** These types have no spec field to live in, so they are emitted by a `CatalogProcessor`
+the module registers. That is the supported way to add relation types, and it means the edges no
+longer appear as `dependsOn`: anything filtering on it, including some default Catalog Graph card
+configurations, stops showing them. Check your entity page's graph card before switching an existing
+installation over.
+
 ### Relations
 
 Providers relate their entities to the resources GCP says they depend on, provided the target's own

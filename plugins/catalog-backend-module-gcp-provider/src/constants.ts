@@ -56,6 +56,14 @@ export const ANNOTATION_GCP_WORKLOAD_IDENTITY_POOL = 'cloud.google.com/workload-
 /** Kubernetes namespace of an ingested Kubernetes service account. */
 export const ANNOTATION_GCP_KSA_NAMESPACE = 'cloud.google.com/ksa-namespace';
 
+/**
+ * Cloud Asset Inventory name of the resource an entity was ingested from.
+ *
+ * Written so anything downstream — the relation processor above all — can find the entity's IAM
+ * policy without the provider having to hand it over.
+ */
+export const ANNOTATION_GCP_ASSET_NAME = 'cloud.google.com/asset-name';
+
 /** Permissions a custom IAM role includes, truncated to fit an annotation. */
 export const ANNOTATION_GCP_IAM_PERMISSIONS = 'cloud.google.com/iam-permissions';
 

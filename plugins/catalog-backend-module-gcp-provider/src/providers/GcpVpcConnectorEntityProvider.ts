@@ -52,7 +52,7 @@ export class GcpVpcConnectorEntityProvider extends GcpRestEntityProvider<vpcacce
         },
       },
       {
-        dependsOn: [
+        attachedTo: [
           ...(connector.network ? [this.vpcRef(connector.network, project)] : []),
           // The subnet is named bare rather than as a URL, and belongs to the connector's region.
           ...(subnet && region

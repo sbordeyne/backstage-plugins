@@ -52,7 +52,7 @@ export class GcpRouterEntityProvider extends GcpRestEntityProvider<compute_v1.Co
         logFilter: `resource.type="nat_gateway" resource.labels.gateway_name="${nat.name}"`,
         tagValues: [nat.natIpAllocateOption, nat.sourceSubnetworkIpRangesToNat],
       },
-      { dependsOn: [routerRef] },
+      { partOf: [routerRef] },
     );
   }
 

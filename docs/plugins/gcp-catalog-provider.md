@@ -438,6 +438,43 @@ catalog:
         cacheTtlSeconds: 600 # default
 ```
 
+## Relation vocabulary
+
+Every edge is `dependsOn` / `dependencyOf` by default. `iam.relations: gcp` names each edge after
+what it actually is — access edges take the verb the IAM role grants, and structural edges become
+containment or attachment:
+
+```yaml
+catalog:
+  providers:
+    gcp:
+      iam:
+        relations: gcp # builtin (default) | gcp
+```
+
+| Source edge                                  | `builtin`   | `gcp`                           |
+| -------------------------------------------- | ----------- | ------------------------------- |
+| `roles/secretmanager.secretAccessor`         | `dependsOn` | `accessorOf` / `accessedBy`     |
+| `roles/pubsub.publisher`                     | `dependsOn` | `publisherTo` / `publishedToBy` |
+| `roles/run.invoker`                          | `dependsOn` | `invokerOf` / `invokedBy`       |
+| `roles/cloudsql.client`                      | `dependsOn` | `clientOf` / `connectedToBy`    |
+| `roles/cloudkms.cryptoKeyEncrypterDecrypter` | `dependsOn` | `encrypterOf` / `encryptedBy`   |
+| anything `.admin`                            | `dependsOn` | `adminOf` / `administeredBy`    |
+| anything `.editor` or `.writer`              | `dependsOn` | `writerOf` / `writtenBy`        |
+| anything `.viewer` or `.reader`              | `dependsOn` | `readerOf` / `readBy`           |
+| unrecognized role                            | `dependsOn` | `userOf` / `usedBy`             |
+| Spanner database → instance, KMS key → ring  | `dependsOn` | `partOf` / `hasPart`            |
+| GKE cluster → subnet, Redis → VPC            | `dependsOn` | `attachedTo` / `hasAttached`    |
+
+Roles classify by suffix, so a GCP role that did not exist when this was written still lands
+somewhere sensible, and an account holding several roles on one resource gets the strongest verb
+only.
+
+Custom relation types cannot be expressed in a spec field, so they are emitted by a
+`CatalogProcessor` the module registers. The consequence is worth checking before switching an
+existing installation: those edges are no longer `dependsOn`, so anything filtering on it — some
+default Catalog Graph card configurations included — stops showing them.
+
 ## Relations
 
 Providers relate their entities to what GCP says they depend on. Each ref is built from the

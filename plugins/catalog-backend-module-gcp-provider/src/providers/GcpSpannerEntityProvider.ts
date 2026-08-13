@@ -54,7 +54,7 @@ export class GcpSpannerEntityProvider extends GcpRestEntityProvider<spanner_v1.S
           ...(database.state ? { [ANNOTATION_GCP_STATUS]: database.state } : {}),
         },
       },
-      { dependsOn: [instanceRef] },
+      { partOf: [instanceRef] },
     );
   }
 

@@ -53,7 +53,7 @@ export class GcpFirewallEntityProvider extends GcpRestEntityProvider<compute_v1.
           'cloud.google.com/firewall-priority': String(firewall.priority ?? 1000),
         },
       },
-      { dependsOn: [this.vpcRef(firewall.network, project)] },
+      { attachedTo: [this.vpcRef(firewall.network, project)] },
     );
   }
 

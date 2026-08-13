@@ -7,8 +7,10 @@ const schedule = { frequency: { hours: 1 }, timeout: { minutes: 10 } };
 /** Provider names registered for the given `catalog.providers.gcp` block. */
 async function registeredProviders(gcp: unknown): Promise<string[]> {
   const addEntityProvider = jest.fn();
+  // The module also registers the relation processor, which the stub has to accept.
+  const addProcessor = jest.fn();
   await startTestBackend({
-    extensionPoints: [[catalogProcessingExtensionPoint, { addEntityProvider }]],
+    extensionPoints: [[catalogProcessingExtensionPoint, { addEntityProvider, addProcessor }]],
     features: [
       catalogModuleGcpProvider,
       mockServices.rootConfig.factory({ data: gcp ? { catalog: { providers: { gcp } } } : {} }),

@@ -74,10 +74,8 @@ export class GcpComputeInstanceEntityProvider extends GcpRestEntityProvider<comp
         },
       },
       {
-        dependsOn: [
-          ...(nic?.subnetwork ? [this.subnetRef(nic.subnetwork, project)] : []),
-          ...serviceAccounts.map(email => this.serviceAccountRef(email)),
-        ],
+        attachedTo: nic?.subnetwork ? [this.subnetRef(nic.subnetwork, project)] : [],
+        dependsOn: serviceAccounts.map(email => this.serviceAccountRef(email)),
       },
     );
   }

@@ -54,7 +54,7 @@ export class GcpAlloyDbEntityProvider extends GcpRestEntityProvider<alloydb_v1.A
           ...(instance.state ? { [ANNOTATION_GCP_STATUS]: instance.state } : {}),
         },
       },
-      { dependsOn: [clusterRef] },
+      { partOf: [clusterRef] },
     );
   }
 

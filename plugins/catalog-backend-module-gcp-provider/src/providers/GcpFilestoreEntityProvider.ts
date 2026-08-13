@@ -52,7 +52,7 @@ export class GcpFilestoreEntityProvider extends GcpRestEntityProvider<file_v1.Fi
         },
       },
       // The network the share is reachable on, named as a bare VPC name rather than a URL.
-      { dependsOn: networks.map(network => this.vpcRef(network, project)) },
+      { attachedTo: networks.map(network => this.vpcRef(network, project)) },
     );
   }
 

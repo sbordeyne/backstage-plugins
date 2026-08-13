@@ -49,7 +49,7 @@ export class GcpRedisEntityProvider extends GcpRestEntityProvider<redis_v1.Redis
         },
       },
       // The instance is only reachable from the network it is attached to.
-      { dependsOn: instance.authorizedNetwork ? [this.vpcRef(instance.authorizedNetwork, project)] : [] },
+      { attachedTo: instance.authorizedNetwork ? [this.vpcRef(instance.authorizedNetwork, project)] : [] },
     );
   }
 

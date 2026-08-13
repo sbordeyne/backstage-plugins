@@ -201,8 +201,8 @@ export class GcpAnalyticsHubEntityProvider extends GcpRestEntityProvider<analyti
             tagValues: [listing.categories?.join(',')],
           },
           {
+            partOf: [exchangeRef],
             dependsOn: [
-              exchangeRef,
               ...(dataset
                 ? [
                     this.resourceRef('bigquery', {

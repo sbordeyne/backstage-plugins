@@ -4,6 +4,7 @@ import { GcpEntityProviderBase, GcpResource } from './GcpEntityProviderBase';
 import { isPermanentlyEmpty, truncateAnnotation } from '../utils';
 import { GcpProjectPolicies } from '../iam';
 import { ANNOTATION_GCP_IAM_MEMBERS } from '../constants';
+import { StructuralRelationKind } from '../relations';
 
 /** Pages a single listing may fetch, so a runaway `nextPageToken` cannot loop forever. */
 const MAX_PAGES = 100;
@@ -18,6 +19,31 @@ export interface GcpListPage<T> {
 export interface GcpAggregatedListPage<TScoped> {
   items?: Record<string, TScoped> | null;
   nextPageToken?: string | null;
+}
+
+/**
+ * A structural relation as it is carried on the entity.
+ *
+ * Custom relation types cannot be expressed in a spec field the catalog understands, so the edge
+ * travels as data and `GcpRelationProcessor` turns it into the real relation rows.
+ */
+export interface GcpStructuralRelation {
+  type: StructuralRelationKind;
+  targetRef: string;
+  /** The entity spec is plain JSON, so this has to be assignable to it. */
+  [key: string]: string;
+}
+
+/** The relations a provider can declare on one resource. */
+export interface GcpRelations {
+  /** Plain dependencies: this resource needs that one to work. */
+  dependsOn?: string[];
+  /** The reverse, for the rare edge that reads better declared from this side. */
+  dependencyOf?: string[];
+  /** Containment: a Spanner database is part of its instance. */
+  partOf?: string[];
+  /** Attachment: a GKE cluster is plugged into its subnet, but is not part of it. */
+  attachedTo?: string[];
 }
 
 /** An item from an aggregated listing, with the scope it was found in. */
@@ -156,11 +182,21 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
    * Every REST provider ends in this call, so the entity shape stays identical across resource
    * types and a provider is left holding only the mapping that is actually specific to it.
    */
-  protected toEntity(
-    resource: GcpResource,
-    relations?: { dependsOn?: string[]; dependencyOf?: string[] },
-  ): DeferredEntity {
+  protected toEntity(resource: GcpResource, relations?: GcpRelations): DeferredEntity {
     const location = `${this.getProviderName()}:${resource.selfLink ?? resource.name}`;
+    const mode = this.relationMode;
+
+    // Containment and attachment are dependencies in the built-in vocabulary and relations of
+    // their own in the GCP one, where they are handed to the processor that can emit custom types.
+    const structural: GcpStructuralRelation[] = [
+      ...(relations?.partOf ?? []).map(targetRef => ({ type: 'partOf' as const, targetRef })),
+      ...(relations?.attachedTo ?? []).map(targetRef => ({ type: 'attachedTo' as const, targetRef })),
+    ];
+    const dependsOn = [
+      ...(relations?.dependsOn ?? []),
+      ...(mode === 'builtin' ? structural.map(relation => relation.targetRef) : []),
+    ];
+
     return {
       entity: {
         apiVersion: 'backstage.io/v1alpha1',
@@ -178,8 +214,9 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
           type: resource.type,
           owner: this.ownerOf(resource.labels),
           ...this.systemOf(resource.labels),
-          ...(relations?.dependsOn?.length ? { dependsOn: relations.dependsOn } : {}),
+          ...(dependsOn.length ? { dependsOn } : {}),
           ...(relations?.dependencyOf?.length ? { dependencyOf: relations.dependencyOf } : {}),
+          ...(mode === 'gcp' && structural.length ? { gcpRelations: structural } : {}),
         },
       },
     };

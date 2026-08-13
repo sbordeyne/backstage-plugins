@@ -46,7 +46,7 @@ export class GcpMemcacheEntityProvider extends GcpRestEntityProvider<memcache_v1
           ...(instance.state ? { [ANNOTATION_GCP_STATUS]: instance.state } : {}),
         },
       },
-      { dependsOn: instance.authorizedNetwork ? [this.vpcRef(instance.authorizedNetwork, project)] : [] },
+      { attachedTo: instance.authorizedNetwork ? [this.vpcRef(instance.authorizedNetwork, project)] : [] },
     );
   }
 

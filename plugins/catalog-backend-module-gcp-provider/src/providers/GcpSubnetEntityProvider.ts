@@ -49,7 +49,7 @@ export class GcpSubnetEntityProvider extends GcpRestEntityProvider<compute_v1.Co
           'cloud.google.com/ip-cidr-range': subnet.ipCidrRange ?? '',
         },
       },
-      { dependsOn: [this.vpcRef(subnet.network, project)] },
+      { attachedTo: [this.vpcRef(subnet.network, project)] },
     );
   }
 

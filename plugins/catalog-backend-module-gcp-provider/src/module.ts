@@ -1,6 +1,7 @@
 import { Config } from '@backstage/config';
 import { coreServices, createBackendModule, LoggerService, SchedulerService } from '@backstage/backend-plugin-api';
 import { catalogProcessingExtensionPoint, EntityProvider } from '@backstage/plugin-catalog-node';
+import { GcpRelationProcessor } from './processors/GcpRelationProcessor';
 import {
   GcpAddressEntityProvider,
   GcpAlloyDbEntityProvider,
@@ -172,6 +173,11 @@ export const catalogModuleGcpProvider = createBackendModule({
           logger.info('No GCP catalog provider configuration found, skipping GCP providers');
           return;
         }
+
+        // Custom relation types have no spec field to travel in, so the ones this module emits —
+        // `accessorOf`, `publishedToBy`, `attachedTo` and the rest — come from a processor. It is
+        // registered unconditionally and does nothing at all unless `iam.relations: gcp`.
+        catalog.addProcessor(new GcpRelationProcessor(config, logger));
 
         for (const [configKey, GcpEntityProvider] of Object.entries(PROVIDERS)) {
           const providerConfig = gcpConfig.getOptionalConfig(configKey);

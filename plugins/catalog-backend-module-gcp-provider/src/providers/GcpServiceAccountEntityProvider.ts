@@ -116,7 +116,10 @@ export class GcpServiceAccountEntityProvider extends GcpRestEntityProvider<iam_v
             : {}),
         },
       },
-      { dependsOn: [...refs.keys()] },
+      // In `gcp` relation mode the typed edges (`accessorOf`, `publisherTo`, …) are emitted by
+      // GcpRelationProcessor instead, from the same grants — declaring `dependsOn` as well would
+      // duplicate every one of them.
+      { dependsOn: this.relationMode === 'builtin' ? [...refs.keys()] : [] },
     );
   }
 

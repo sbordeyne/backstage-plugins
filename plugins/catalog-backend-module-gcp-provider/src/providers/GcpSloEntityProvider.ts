@@ -51,7 +51,7 @@ export class GcpSloEntityProvider extends GcpRestEntityProvider<monitoring_v3.Mo
           ...(slo.goal ? { 'cloud.google.com/slo-goal': goal } : {}),
         },
       },
-      { dependsOn: [serviceRef] },
+      { partOf: [serviceRef] },
     );
   }
 

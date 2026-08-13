@@ -45,7 +45,7 @@ export class GcpKafkaEntityProvider extends GcpRestEntityProvider<managedkafka_v
         consolePath: `managedkafka/${region}/clusters/${clusterId}/topics/${topicId}`,
         tagValues: [topic.configs?.['cleanup.policy'], topic.configs?.['compression.type']],
       },
-      { dependsOn: [clusterRef] },
+      { partOf: [clusterRef] },
     );
   }
 

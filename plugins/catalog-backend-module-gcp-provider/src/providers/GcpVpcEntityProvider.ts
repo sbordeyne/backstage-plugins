@@ -48,7 +48,7 @@ export class GcpVpcEntityProvider extends GcpRestEntityProvider<compute_v1.Compu
             : {}),
         },
       },
-      { dependsOn: peerings.map(peering => this.vpcRef(peering.network, project)) },
+      { attachedTo: peerings.map(peering => this.vpcRef(peering.network, project)) },
     );
   }
 

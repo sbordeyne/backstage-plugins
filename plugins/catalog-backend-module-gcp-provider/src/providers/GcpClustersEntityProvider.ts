@@ -10,6 +10,7 @@ import {
   ANNOTATION_KUBERNETES_DASHBOARD_PARAMETERS,
 } from '@backstage/plugin-kubernetes-common';
 import { regionOf } from '../utils';
+import { GcpStructuralRelation } from './GcpRestEntityProvider';
 
 export class GcpClustersEntityProvider extends GcpEntityProviderBase<container.ClusterManagerClient> {
   getProviderName(): string {
@@ -22,6 +23,22 @@ export class GcpClustersEntityProvider extends GcpEntityProviderBase<container.C
 
   getClient(): container.ClusterManagerClient {
     return new container.ClusterManagerClient({ credentials: this.credentials });
+  }
+
+  /**
+   * The spec fragment for network attachment, in whichever relation vocabulary is configured.
+   *
+   * This provider builds its entity by hand rather than through `toEntity`, because it carries a
+   * `locationKey` and the Kubernetes plugin's annotations, so it has to make the same choice
+   * itself.
+   */
+  private networkRelations(refs: string[]): { dependsOn?: string[]; gcpRelations?: GcpStructuralRelation[] } {
+    if (refs.length === 0) {
+      return {};
+    }
+    return this.relationMode === 'builtin'
+      ? { dependsOn: refs }
+      : { gcpRelations: refs.map(targetRef => ({ type: 'attachedTo' as const, targetRef })) };
   }
 
   private async clusterToResource(
@@ -81,9 +98,9 @@ export class GcpClustersEntityProvider extends GcpEntityProviderBase<container.C
           type: 'kubernetes-cluster',
           owner: this.ownerOf(cluster.resourceLabels),
           ...this.systemOf(cluster.resourceLabels),
-          // A cluster is only reachable through the network it sits in, and its nodes only in the
-          // subnet, so both are dependencies rather than details.
-          dependsOn: [
+          // A cluster is plugged into its network and subnet rather than being part of them, which
+          // is `attachedTo` in the GCP vocabulary and a plain dependency in the built-in one.
+          ...this.networkRelations([
             ...(cluster.network ? [this.vpcRef(cluster.network, project)] : []),
             ...(cluster.subnetwork
               ? [
@@ -98,7 +115,7 @@ export class GcpClustersEntityProvider extends GcpEntityProviderBase<container.C
                   }),
                 ]
               : []),
-          ],
+          ]),
         },
       },
     };

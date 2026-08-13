@@ -57,9 +57,11 @@ export class GcpComposerEntityProvider extends GcpRestEntityProvider<composer_v1
         },
       },
       {
-        dependsOn: [
+        attachedTo: [
           ...(config?.nodeConfig?.network ? [this.vpcRef(config.nodeConfig.network, project)] : []),
           ...(config?.nodeConfig?.subnetwork ? [this.subnetRef(config.nodeConfig.subnetwork, project)] : []),
+        ],
+        dependsOn: [
           ...(dagBucket
             ? [
                 this.resourceRef('storage', {

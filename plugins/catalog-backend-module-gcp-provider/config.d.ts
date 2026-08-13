@@ -83,6 +83,19 @@ interface GcpIamConfig {
    * the catalog ingests, and this covers the rest at the cost of a wordy annotation.
    */
   annotateResources?: boolean;
+
+  /**
+   * Which relation vocabulary is emitted. Defaults to `builtin`.
+   *
+   * - `builtin` — every edge is `dependsOn` / `dependencyOf`, which is what the catalog and its
+   *   graph views have always understood.
+   * - `gcp` — IAM edges become the verb that the role actually grants (`accessorOf` / `accessedBy`,
+   *   `publisherTo` / `publishedToBy`, `adminOf` / `administeredBy`, …), containment becomes
+   *   `partOf` / `hasPart` and network attachment becomes `attachedTo` / `hasAttached`. Those edges
+   *   are no longer `dependsOn`, so anything filtering on it — including some default Catalog Graph
+   *   card configurations — stops showing them.
+   */
+  relations?: 'builtin' | 'gcp';
 }
 
 /** An extra link written onto every entity a provider ingests. */
@@ -172,6 +185,9 @@ interface GcpProviderCommonConfig {
 
   /** Extra links written onto every entity this provider ingests. */
   extraLinks?: GcpExtraLinkConfig[];
+
+  /** Relation vocabulary for this provider, overriding `iam.relations`. */
+  relations?: 'builtin' | 'gcp';
 }
 
 export interface Config {

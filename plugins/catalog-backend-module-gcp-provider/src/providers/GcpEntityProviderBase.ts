@@ -20,13 +20,16 @@ import { google } from 'googleapis';
 export type GcpGoogleAuth = InstanceType<typeof google.auth.GoogleAuth>;
 import fs from 'fs';
 import {
+  ANNOTATION_GCP_ASSET_NAME,
   ANNOTATION_GCP_PROJECT_ID,
   DEFAULT_NAMESPACE_TEMPLATE,
   DEFAULT_OWNER_LABEL,
   DEFAULT_SYSTEM_LABEL,
 } from '../constants';
 import { buildLinks, DEFAULT_LINK_OPTIONS, LinkOptions } from '../links';
-import { GcpAssetIndex, GcpAssetIndexOptions, GcpProjectPolicies, getAssetIndex, parseAsset } from '../iam';
+import { GcpAssetIndex, GcpAssetIndexOptions, GcpProjectPolicies, getAssetIndex } from '../iam';
+import { RelationMode } from '../relations';
+import { GcpRefBuilder } from '../processors/GcpRefBuilder';
 import {
   formatResourceName,
   GcpLabels,
@@ -134,6 +137,11 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * and there is no separate code path for running on GCP.
    */
   protected readonly googleAuth: GcpGoogleAuth;
+  /**
+   * Entity ref construction, shared with the relation processor so a provider and the processor
+   * that adds relations to its entities can never disagree about where an entity lives.
+   */
+  protected readonly refs: GcpRefBuilder;
 
   public constructor(logger: LoggerService, scheduler: SchedulerService, config: Config) {
     const gcpConfig = config.getConfig('catalog.providers.gcp');
@@ -154,6 +162,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
     this.scheduleFn = this.createScheduleFn(scheduler.createScheduledTaskRunner(schedule));
     this.config = providerConfig;
     this.gcpConfig = gcpConfig;
+    this.refs = new GcpRefBuilder(gcpConfig, logger);
     this.googleAuth = new google.auth.GoogleAuth({
       ...(this.credentials ? { credentials: this.credentials } : {}),
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
@@ -293,11 +302,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * since the ref is worth emitting for the case where its target is ingested later.
    */
   protected namespaceOfProvider(providerConfigKey: string, context: GcpResourceContext): string {
-    const template =
-      this.gcpConfig.getOptionalConfig(providerConfigKey)?.getOptionalString('namespace') ??
-      this.gcpConfig.getOptionalString('defaultNamespace') ??
-      DEFAULT_NAMESPACE_TEMPLATE;
-    return this.renderNamespace(template, context);
+    return this.refs.namespaceFor(providerConfigKey, context);
   }
 
   /**
@@ -347,14 +352,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * here — it resolves if the account is ingested later.
    */
   protected serviceAccountRef(member: string): string {
-    const email = lastSegment(member.split(':').pop() ?? member);
-    const [accountName, domain] = email.split('@');
-    return this.resourceRef('service-account', {
-      projectId: domain?.split('.')[0] ?? '',
-      type: 'google-service-account',
-      provider: 'gcp-service-account',
-      name: accountName,
-    });
+    return this.refs.serviceAccountRef(member);
   }
 
   /** Ref of the VPC network a Compute resource URL points at. */
@@ -435,25 +433,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * than from the projects of whichever provider happens to be asking.
    */
   protected get allConfiguredProjects(): string[] {
-    const projects = new Set<string>();
-    for (const key of this.gcpConfig.keys()) {
-      // `catalog.providers.gcp` holds scalar defaults alongside the provider blocks, and reading a
-      // string key as a config object throws, so the value is inspected before it is read.
-      const value = this.gcpConfig.getOptional(key);
-      if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        continue;
-      }
-      const configured = (value as { projects?: unknown }).projects;
-      if (!Array.isArray(configured)) {
-        continue;
-      }
-      for (const project of configured) {
-        if (typeof project === 'string') {
-          projects.add(project);
-        }
-      }
-    }
-    return [...projects];
+    return this.refs.allConfiguredProjects();
   }
 
   /**
@@ -476,13 +456,25 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
     return policies;
   }
 
+  /**
+   * Which relation vocabulary this installation emits.
+   *
+   * Defaults to `builtin`, so upgrading changes no relation anyone is already filtering on. `gcp`
+   * replaces `dependsOn` with the typed pairs in `src/relations.ts`.
+   */
+  protected get relationMode(): RelationMode {
+    const configured =
+      this.config.getOptionalString('relations') ?? this.gcpConfig.getOptionalString('iam.relations') ?? 'builtin';
+    if (configured !== 'builtin' && configured !== 'gcp') {
+      this.logger.warn(`Unknown relation mode '${configured}', using builtin`);
+      return 'builtin';
+    }
+    return configured;
+  }
+
   /** Whether a role passes the configured `roles` allowlist and `excludeRoles` denylist. */
   protected iamRoleWanted(role: string): boolean {
-    const { roles, excludeRoles } = this.iamOptions;
-    if (excludeRoles.includes(role)) {
-      return false;
-    }
-    return !roles || roles.includes(role);
+    return this.refs.roleWanted(role);
   }
 
   /**
@@ -494,31 +486,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * knows which provider ingests buckets, so that provider's namespace template applies.
    */
   protected refForAsset(assetName: string, assetType: string, fallbackProject: string): string | undefined {
-    const parsed = parseAsset(assetName, assetType);
-    if (!parsed) {
-      return undefined;
-    }
-    const { mapping, projectId, region, leaf } = parsed;
-
-    if (mapping.nameStyle === 'serviceAccount') {
-      return this.serviceAccountRef(leaf);
-    }
-
-    let name = leaf;
-    if (mapping.nameStyle === 'subnet' && region) {
-      name = `${leaf}-${region}`;
-    } else if (mapping.nameStyle === 'pubsub') {
-      const prefixes = this.gcpConfig.getOptionalConfig('pubsub')?.getOptionalStringArray('stripPrefixes') ?? [];
-      name = stripPrefixes(leaf, prefixes);
-    }
-
-    return this.resourceRef(mapping.configKey, {
-      projectId: projectId ?? fallbackProject,
-      type: mapping.type,
-      provider: mapping.provider,
-      region,
-      name,
-    });
+    return this.refs.refForAsset(assetName, assetType, fallbackProject);
   }
 
   /**
@@ -692,6 +660,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
         [ANNOTATION_GCP_PROJECT_ID]: resource.projectId,
         ...regionAnnotation(region),
         ...selfLinkAnnotation(resource.selfLink),
+        ...(resource.assetName ? { [ANNOTATION_GCP_ASSET_NAME]: resource.assetName } : {}),
         ...resource.annotations,
       },
       ...(tags.length > 0 ? { tags } : {}),

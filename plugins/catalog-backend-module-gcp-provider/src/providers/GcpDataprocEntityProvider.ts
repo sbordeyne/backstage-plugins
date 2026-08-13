@@ -52,9 +52,11 @@ export class GcpDataprocEntityProvider extends GcpRestEntityProvider<dataproc_v1
         },
       },
       {
-        dependsOn: [
+        attachedTo: [
           ...(gce?.networkUri ? [this.vpcRef(gce.networkUri, project)] : []),
           ...(gce?.subnetworkUri ? [this.subnetRef(gce.subnetworkUri, project)] : []),
+        ],
+        dependsOn: [
           ...(gce?.serviceAccount ? [this.serviceAccountRef(gce.serviceAccount)] : []),
           ...(cluster.config?.configBucket
             ? [
