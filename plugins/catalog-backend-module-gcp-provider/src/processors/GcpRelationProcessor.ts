@@ -4,6 +4,7 @@ import { Entity, parseEntityRef, stringifyEntityRef } from '@backstage/catalog-m
 import { CatalogProcessor, CatalogProcessorEmit, processingResult } from '@backstage/plugin-catalog-node';
 import { google } from 'googleapis';
 import { GcpAssetIndex, getAssetIndex } from '../iam';
+import { createGoogleAuth } from '../googleAuth';
 import { GcpRefBuilder } from './GcpRefBuilder';
 import {
   classifyRole,
@@ -59,7 +60,7 @@ export class GcpRelationProcessor implements CatalogProcessor {
   private get index(): GcpAssetIndex {
     return (
       this.assetIndex ??
-      getAssetIndex(google.cloudasset({ version: 'v1' }), this.logger, {
+      getAssetIndex(google.cloudasset({ version: 'v1', auth: createGoogleAuth(this.logger) }), this.logger, {
         cacheTtlMs: (this.gcpConfig.getOptionalNumber('iam.cacheTtlSeconds') ?? 600) * 1000,
         maxBindings: this.gcpConfig.getOptionalNumber('iam.maxBindingsPerProject') ?? 20000,
       })

@@ -10,15 +10,11 @@ import { EntityLink } from '@backstage/catalog-model';
 import { JWTInput } from 'google-auth-library';
 import { google } from 'googleapis';
 
-/**
- * The `GoogleAuth` the API clients accept.
- *
- * `googleapis-common` bundles its own copy of `google-auth-library`, and the two copies are
- * nominally different types, so the instance has to be typed from the `googleapis` surface rather
- * than imported from the library directly.
- */
-export type GcpGoogleAuth = InstanceType<typeof google.auth.GoogleAuth>;
 import fs from 'fs';
+import { createGoogleAuth, GcpGoogleAuth } from '../googleAuth';
+
+export type { GcpGoogleAuth };
+
 import {
   ANNOTATION_GCP_ASSET_NAME,
   ANNOTATION_GCP_PROJECT_ID,
@@ -148,25 +144,16 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
     const providerConfig = gcpConfig.getConfig(this.getProviderConfigKey());
     const schedule = readSchedulerServiceTaskScheduleDefinitionFromConfig(providerConfig.getConfig('schedule'));
 
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      logger.info(`Using GOOGLE_APPLICATION_CREDENTIALS: ${process.env.GOOGLE_APPLICATION_CREDENTIALS}`);
-      const credentialsFile = fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8');
-      this.credentials = JSON.parse(credentialsFile);
-    } else {
-      this.credentials = undefined;
-    }
-    // Parse the credentials file and create a BigQuery client
-    // This assumes the credentials file is in JSON format
-    // and contains the necessary fields for authentication.
+    // Some clients take a `GoogleAuth`, others take the parsed key directly, so both forms are kept.
+    this.credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS
+      ? JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'))
+      : undefined;
     this.logger = logger;
     this.scheduleFn = this.createScheduleFn(scheduler.createScheduledTaskRunner(schedule));
     this.config = providerConfig;
     this.gcpConfig = gcpConfig;
     this.refs = new GcpRefBuilder(gcpConfig, logger);
-    this.googleAuth = new google.auth.GoogleAuth({
-      ...(this.credentials ? { credentials: this.credentials } : {}),
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    });
+    this.googleAuth = createGoogleAuth(logger);
     this.client = this.getClient();
   }
 
