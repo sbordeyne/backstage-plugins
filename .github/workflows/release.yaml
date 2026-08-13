@@ -169,6 +169,7 @@ jobs:
           # verbatim and ship a package nobody can install. `prepack` also needs the build,
           # since it rewrites the manifest to point at dist/.
           yarn workspace "${PACKAGE}" build
+          yarn workspace "${PACKAGE}" tsc
           yarn workspace "${PACKAGE}" pack --out "${RUNNER_TEMP}/package.tgz"
 
           # No token in the environment on purpose: npm uses the OIDC exchange, and
