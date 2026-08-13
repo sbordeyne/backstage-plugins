@@ -429,6 +429,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#running-the-plugins-locally" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the plugins locally
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#configuration-schemas" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -678,6 +689,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="plugins/gotemplate-playground/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Go template playground
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -860,6 +899,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#running-the-plugins-locally" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the plugins locally
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#configuration-schemas" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -945,6 +995,11 @@ repository except the shared packages a plugin pair uses between its own halves.
 <td>tech-insights module</td>
 <td>Detects build tool, language version, framework and metrics library from GitHub</td>
 </tr>
+<tr>
+<td><a href="plugins/gotemplate-playground/">Go template playground</a></td>
+<td>toolbox module</td>
+<td>Renders Go templates against the sprig, sprout, helm and external-secrets function sets</td>
+</tr>
 </tbody>
 </table>
 <p>Two cross-cutting guides cover the setup that is shared between them:</p>
@@ -999,6 +1054,28 @@ depending on the plugin. Each plugin page shows exactly where.</p>
 <p>Plugins that store data (<code>bruno-backend</code>, <code>secure-share-backend</code>) run their own migrations at
 startup against the database the backend hands them, so there is no migration step to run by
 hand. They honour <code>backend.database.migrations.skip</code> if you manage schema yourself.</p>
+<h2 id="running-the-plugins-locally">Running the plugins locally<a class="headerlink" href="#running-the-plugins-locally" title="Permanent link">&para;</a></h2>
+<p>The repository carries its own throwaway Backstage app in <code>packages/app</code> and <code>packages/backend</code>,
+so a plugin can be exercised without wiring it into a real instance:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>yarn<span class="w"> </span>install
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>yarn<span class="w"> </span>start<span class="w">          </span><span class="c1"># backend on :7007, frontend on :3000</span>
+</code></pre></div>
+<p>It runs on an in-memory SQLite database with guest auth, so it needs no credentials and keeps no
+state between runs. <code>examples/entities.yaml</code> supplies a component to hang entity-scoped tabs off.</p>
+<p>The app uses the <strong>new frontend system</strong>, because the toolbox module requires it. The three
+legacy-system frontend plugins are adapted in <code>packages/app/src/App.tsx</code> with <code>convertLegacyPlugin</code>
+and <code>compatWrapper</code>.</p>
+<p>Backend plugins that need third-party credentials — the GCP catalog provider, <code>bruno-backend</code> and
+the two tech-insights modules — are listed but commented out in <code>packages/backend/src/index.ts</code>.
+Put their credentials in <code>app-config.local.yaml</code> and uncomment the one you want.</p>
+<div class="admonition note">
+<p class="admonition-title">The Go template playground needs its engine built first</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>yarn<span class="w"> </span>workspace<span class="w"> </span>@sbordeyne/backstage-plugin-toolbox-module-gotemplate<span class="w"> </span>build:wasm
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>cp<span class="w"> </span>plugins/toolbox-module-gotemplate/static/gotemplate.wasm<span class="w"> </span>packages/app/public/
+</code></pre></div>
+<p>The dev app serves it from <code>/gotemplate.wasm</code> rather than the public CDN. It is 83 MB and is
+deliberately not committed.</p>
+</div>
 <h2 id="configuration-schemas">Configuration schemas<a class="headerlink" href="#configuration-schemas" title="Permanent link">&para;</a></h2>
 <p>Backend packages that read configuration declare a <code>config.d.ts</code> schema, so
 <code>backstage-cli config:check</code> validates your <code>app-config.yaml</code> against them and
@@ -1036,7 +1113,7 @@ backend-only by construction.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 2, 2026 11:19:50 UTC">August 2, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 13, 2026 06:33:52 UTC">August 13, 2026</span>
   </span>
 
     
