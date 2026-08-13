@@ -103,16 +103,26 @@ describe('renderTemplate', () => {
   });
 
   it('substitutes the resource facts', () => {
+    expect(renderTemplate('gcp-{{projectId}}', context)).toBe('gcp-my-project');
+    expect(renderTemplate('{{provider}}-{{region}}', context)).toBe('gcp-bucket-europe-west1');
+  });
+
+  it('understands the dollar spelling too, for templates that escaped the config loader', () => {
+    // `$${projectId}` in app-config.yaml reaches us as `${projectId}`.
     expect(renderTemplate('gcp-${projectId}', context)).toBe('gcp-my-project');
-    expect(renderTemplate('${provider}-${region}', context)).toBe('gcp-bucket-europe-west1');
+    expect(renderTemplate('${provider}-{{region}}', context)).toBe('gcp-bucket-europe-west1');
+  });
+
+  it('tolerates whitespace inside a placeholder', () => {
+    expect(renderTemplate('gcp-{{ projectId }}', context)).toBe('gcp-my-project');
   });
 
   it('substitutes an absent value with nothing', () => {
-    expect(renderTemplate('${type}-${name}', context)).toBe('bucket-');
+    expect(renderTemplate('{{type}}-{{name}}', context)).toBe('bucket-');
   });
 
   it('throws on an unknown variable, so config typos surface', () => {
-    expect(() => renderTemplate('gcp-${project}', context)).toThrow(/Unknown template variable 'project'/);
+    expect(() => renderTemplate('gcp-{{project}}', context)).toThrow(/Unknown template variable 'project'/);
   });
 });
 

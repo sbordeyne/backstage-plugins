@@ -67,35 +67,35 @@ describe('namespaces', () => {
   });
 
   it('renders the shared template', () => {
-    expect(providerWith({ defaultNamespace: 'gcp-${projectId}' }).metadata(bucket).namespace).toBe('gcp-my-project');
+    expect(providerWith({ defaultNamespace: 'gcp-{{projectId}}' }).metadata(bucket).namespace).toBe('gcp-my-project');
   });
 
   it('prefers the provider template over the shared one', () => {
     const provider = providerWith({
-      defaultNamespace: 'gcp-${projectId}',
-      storage: { projects: ['my-project'], schedule, namespace: '${type}-${region}' },
+      defaultNamespace: 'gcp-{{projectId}}',
+      storage: { projects: ['my-project'], schedule, namespace: '{{type}}-{{region}}' },
     });
     expect(provider.metadata(bucket).namespace).toBe('bucket-europe-west1');
   });
 
   it('normalizes the rendered namespace into something the catalog accepts', () => {
-    expect(providerWith({ defaultNamespace: 'GCP_${projectId}' }).metadata(bucket).namespace).toBe('gcp-my-project');
+    expect(providerWith({ defaultNamespace: 'GCP_{{projectId}}' }).metadata(bucket).namespace).toBe('gcp-my-project');
   });
 
   it('falls back to the default namespace when the template names an unknown variable', () => {
-    expect(providerWith({ defaultNamespace: 'gcp-${project}' }).metadata(bucket).namespace).toBe('default');
+    expect(providerWith({ defaultNamespace: 'gcp-{{project}}' }).metadata(bucket).namespace).toBe('default');
   });
 
   it('reads another provider config block for refs pointing at it', () => {
     const provider = providerWith({
-      defaultNamespace: 'gcp-${projectId}',
+      defaultNamespace: 'gcp-{{projectId}}',
       'service-account': { projects: ['my-project'], schedule, namespace: 'iam-${projectId}' },
     });
     expect(provider.namespaceOfOther('service-account')).toBe('iam-my-project');
   });
 
   it('falls back to the shared template for a provider that is not configured', () => {
-    expect(providerWith({ defaultNamespace: 'gcp-${projectId}' }).namespaceOfOther('service-account')).toBe(
+    expect(providerWith({ defaultNamespace: 'gcp-{{projectId}}' }).namespaceOfOther('service-account')).toBe(
       'gcp-my-project',
     );
   });
@@ -230,7 +230,7 @@ describe('links', () => {
       storage: {
         projects: ['my-project'],
         schedule,
-        extraLinks: [{ url: 'https://wiki/${projectId}/${name}', title: 'Runbook', icon: 'docs' }],
+        extraLinks: [{ url: 'https://wiki/{{projectId}}/{{name}}', title: 'Runbook', icon: 'docs' }],
       },
     });
     expect(provider.metadata(bucket).links).toContainEqual({
@@ -245,12 +245,12 @@ describe('links', () => {
       storage: {
         projects: ['my-project'],
         schedule,
-        extraLinks: [{ url: 'https://wiki/${bucket}' }, { url: 'https://wiki/${name}' }],
+        extraLinks: [{ url: 'https://wiki/{{bucket}}' }, { url: 'https://wiki/{{name}}' }],
       },
     });
     const urls = (provider.metadata(bucket).links ?? []).map(link => link.url);
     expect(urls).toContain('https://wiki/my-bucket');
-    expect(urls).not.toContain('https://wiki/${bucket}');
+    expect(urls).not.toContain('https://wiki/{{bucket}}');
   });
 });
 

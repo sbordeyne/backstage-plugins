@@ -101,8 +101,8 @@ interface GcpIamConfig {
 /** An extra link written onto every entity a provider ingests. */
 interface GcpExtraLinkConfig {
   /**
-   * Link target. Accepts the same `${projectId}` / `${type}` / `${provider}` / `${region}` /
-   * `${name}` placeholders as `defaultNamespace`.
+   * Link target. Accepts the same `{{projectId}}` / `{{type}}` / `{{provider}}` / `{{region}}` /
+   * `{{name}}` placeholders as `defaultNamespace`.
    */
   url: string;
 
@@ -227,10 +227,15 @@ export interface Config {
          * Default for every provider's `namespace`: the namespace ingested entities land in.
          * Falls back to `default`.
          *
-         * The value is a template, in which `${projectId}`, `${type}`, `${provider}`, `${region}`
-         * and `${name}` are replaced by the resource's project, its `spec.type`, the name of the
+         * The value is a template, in which `{{projectId}}`, `{{type}}`, `{{provider}}`, `{{region}}`
+         * and `{{name}}` are replaced by the resource's project, its `spec.type`, the name of the
          * provider that ingested it, its region and its entity name. The result is lowercased with
-         * anything outside `[a-z0-9-]` folded to `-`, so `gcp-${projectId}` gives `gcp-my-project`.
+         * anything outside `[a-z0-9-]` folded to `-`, so `gcp-{{projectId}}` gives `gcp-my-project`.
+         *
+         * Write `{{…}}`, not `${…}`: Backstage's config loader substitutes `${VAR}` with an
+         * environment variable before this plugin sees it, and drops the whole key when the
+         * variable is unset — so `gcp-${projectId}` silently yields no namespace template at all.
+         * An existing `${…}` template can be escaped as `$${projectId}` instead.
          */
         defaultNamespace?: string;
 

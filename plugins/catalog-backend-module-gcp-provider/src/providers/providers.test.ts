@@ -76,7 +76,7 @@ describe('networking providers', () => {
     });
 
     const provider = providerOf(GcpRouterEntityProvider, {
-      defaultNamespace: 'gcp-${projectId}',
+      defaultNamespace: 'gcp-{{projectId}}',
       routers: { projects: ['my-project'], schedule },
     });
     const entities = entitiesOf(await provider.getResources());
@@ -137,7 +137,7 @@ describe('networking providers', () => {
     });
 
     const provider = providerOf(GcpVpcEntityProvider, {
-      defaultNamespace: 'gcp-${projectId}',
+      defaultNamespace: 'gcp-{{projectId}}',
       vpc: { projects: ['my-project'], schedule },
     });
     const [network] = entitiesOf(await provider.getResources());
@@ -304,7 +304,7 @@ describe('the IAM access graph', () => {
   }
 
   const gcp = {
-    defaultNamespace: 'gcp-${projectId}',
+    defaultNamespace: 'gcp-{{projectId}}',
     // The Pub/Sub provider strips this prefix, so IAM refs to topics must strip it too.
     pubsub: { projects: ['prod'], schedule, stripPrefixes: ['myorg-'] },
     'service-account': { projects: ['prod'], schedule },

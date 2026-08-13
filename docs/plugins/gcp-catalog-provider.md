@@ -134,7 +134,7 @@ catalog:
       ownerLabel: backstage.io/owner-ref
       systemLabel: backstage.io/system-ref
       # Every entity of a project lands together.
-      defaultNamespace: gcp-${projectId}
+      defaultNamespace: gcp-{{projectId}}
 
       service-account:
         projects: [my-project]
@@ -194,7 +194,7 @@ catalog:
         projects: [my-project]
         extraLinks:
           - title: Runbook
-            url: https://wiki.example.com/db/${name}
+            url: https://wiki.example.com/db/{{name}}
             icon: docs
         schedule: { frequency: { hours: 6 }, timeout: { minutes: 10 } }
 
@@ -223,9 +223,18 @@ Set once under `catalog.providers.gcp` and inherited by every provider.
 | `tags`             | object  | every source off          | Which facts become `metadata.tags`                |
 | `descriptions`     | boolean | `true`                    | Generated description when the API reports none   |
 
-The namespace template accepts `${projectId}`, `${type}`, `${provider}`, `${region}` and `${name}`,
-so `gcp-${projectId}` puts every entity of a project together. The rendered value is lowercased
+The namespace template accepts `{{projectId}}`, `{{type}}`, `{{provider}}`, `{{region}}` and `{{name}}`,
+so `gcp-{{projectId}}` puts every entity of a project together. The rendered value is lowercased
 with anything outside `[a-z0-9-]` folded to `-`.
+
+!!! warning "Use `{{…}}`, not `${…}`"
+
+    Backstage's config loader substitutes `${VAR}` with an **environment variable** before any
+    plugin reads the value, and discards the whole key when the variable is unset. Written as
+    `defaultNamespace: gcp-${projectId}`, the key never reaches this module and every entity lands
+    in `default`. `{{projectId}}` is untouched by the loader. The dollar spelling still works if it
+    survives that far, so an existing config can also be fixed by escaping it — `gcp-$${projectId}`
+    — but `{{…}}` is the spelling to write.
 
 ### Per-provider keys
 

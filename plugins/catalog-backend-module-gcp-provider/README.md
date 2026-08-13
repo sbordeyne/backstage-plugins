@@ -130,7 +130,7 @@ catalog:
       # System for resources whose labels name none. Omitted by default.
       defaultSystem: system:default/infrastructure
       # Namespace template for every ingested entity. Defaults to 'default'.
-      defaultNamespace: gcp-${projectId}
+      defaultNamespace: gcp-{{projectId}}
       # Link families written onto every entity.
       links:
         console: true # default
@@ -163,7 +163,7 @@ catalog:
       cloudsql:
         projects: [my-project]
         # Databases are kept apart from the rest of the catalog.
-        namespace: databases-${projectId}
+        namespace: databases-{{projectId}}
         schedule: { frequency: { hours: 1 }, timeout: { minutes: 10 } }
       storage:
         projects: [my-project]
@@ -200,7 +200,7 @@ catalog:
         projects: [my-project]
         extraLinks:
           - title: Runbook
-            url: https://wiki.example.com/db/${name}
+            url: https://wiki.example.com/db/{{name}}
             icon: docs
         schedule: { frequency: { hours: 6 }, timeout: { minutes: 10 } }
       run:
@@ -261,18 +261,25 @@ pointing at nothing. A label whose value is not a usable ref is logged and treat
 Every ingested entity lands in the namespace given by `namespace` → `defaultNamespace` → `default`,
 which is a template over the resource being ingested:
 
-| Placeholder    | Value                                                    |
-| -------------- | -------------------------------------------------------- |
-| `${projectId}` | GCP project the resource lives in                        |
-| `${type}`      | `spec.type` of the entity, e.g. `bucket`, `pubsub-topic` |
-| `${provider}`  | Provider that ingested it, e.g. `gcp-bucket`             |
-| `${region}`    | Region or location, empty when the API reported none     |
-| `${name}`      | Entity name of the resource                              |
+| Placeholder     | Value                                                    |
+| --------------- | -------------------------------------------------------- |
+| `{{projectId}}` | GCP project the resource lives in                        |
+| `{{type}}`      | `spec.type` of the entity, e.g. `bucket`, `pubsub-topic` |
+| `{{provider}}`  | Provider that ingested it, e.g. `gcp-bucket`             |
+| `{{region}}`    | Region or location, empty when the API reported none     |
+| `{{name}}`      | Entity name of the resource                              |
 
 The rendered value is lowercased with anything outside `[a-z0-9-]` folded to `-` and truncated to
-63 characters, so `gcp-${projectId}` becomes `gcp-my-project` and `${provider}` becomes
+63 characters, so `gcp-{{projectId}}` becomes `gcp-my-project` and `{{provider}}` becomes
 `gcp-bucket`. A template naming an unknown placeholder is logged and ignored, and its entities land
 in `default` — visibly wrong, but still ingested.
+
+> **Use `{{…}}`, not `${…}`.** Backstage's own config loader substitutes `${VAR}` with an
+> **environment variable** before any plugin reads the value, and when the variable is unset it
+> discards the whole key. `defaultNamespace: gcp-${projectId}` therefore silently becomes no
+> `defaultNamespace` at all, and everything lands in `default`. `{{projectId}}` is untouched by the
+> loader. The dollar spelling is still understood if it reaches the provider, so an existing config
+> can also be fixed by escaping it as `gcp-$${projectId}` — but `{{…}}` is the one to write.
 
 Relations between entities follow the namespaces: each ref is built from the namespace of the
 provider that ingests the target, so namespacing providers differently keeps them resolving.
@@ -478,13 +485,13 @@ google.cloud.pubsub.topic.v1.messagePublished to Cloud Run service orders-api`. 
 
 `logs` is off because the filter is an assumption about how the resource logs, and a link to a
 query returning nothing is worse than no link. `extraLinks` adds links of your own, with the same
-`${projectId}` / `${type}` / `${provider}` / `${region}` / `${name}` placeholders as the namespace
+`{{projectId}}` / `{{type}}` / `{{provider}}` / `{{region}}` / `{{name}}` placeholders as the namespace
 template:
 
 ```yaml
 extraLinks:
   - title: Runbook
-    url: https://wiki.example.com/db/${name}
+    url: https://wiki.example.com/db/{{name}}
     icon: docs
     type: runbook
 ```

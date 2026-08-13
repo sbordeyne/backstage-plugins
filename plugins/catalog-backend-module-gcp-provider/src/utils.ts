@@ -229,14 +229,25 @@ export interface GcpResourceContext {
 const TEMPLATE_VARIABLES = ['projectId', 'type', 'provider', 'region', 'name'] as const;
 
 /**
- * A template with `${placeholder}` replaced by the matching value from `context`.
+ * Placeholders, in either supported spelling.
+ *
+ * `{{name}}` is the one to use. `${name}` is accepted too, but Backstage's own config loader
+ * substitutes `${...}` with **environment variables** before any plugin sees the value, and drops
+ * the whole key when the variable is unset — so a bare `${projectId}` in `app-config.yaml` never
+ * reaches this function at all. Writing it as `$${projectId}` escapes it past the loader and leaves
+ * `${projectId}` here, which is why the spelling is still understood.
+ */
+const PLACEHOLDER = /\{\{\s*([^{}]*?)\s*\}\}|\$\{\s*([^{}]*?)\s*\}/g;
+
+/**
+ * A template with its placeholders replaced by the matching values from `context`.
  *
  * Throws on a placeholder that is not a known variable, so a typo in config surfaces as a warning
  * rather than as entities silently landing in a namespace like `gcp-`.
  */
 export function renderTemplate(template: string, context: GcpResourceContext): string {
-  return template.replace(/\$\{\s*([^}]*)\s*\}/g, (_match, rawKey: string) => {
-    const key = rawKey.trim();
+  return template.replace(PLACEHOLDER, (_match, curly?: string, dollar?: string) => {
+    const key = (curly ?? dollar ?? '').trim();
     if (!(TEMPLATE_VARIABLES as readonly string[]).includes(key)) {
       throw new Error(`Unknown template variable '${key}', expected one of ${TEMPLATE_VARIABLES.join(', ')}`);
     }
