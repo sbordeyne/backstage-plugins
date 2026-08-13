@@ -14,6 +14,7 @@ repository except the shared packages a plugin pair uses between its own halves.
 | [Integrated repositories](plugins/integrated-repositories.md) | frontend               | Tracks how much of a GitHub organization the catalog actually covers                             |
 | [Tech Insights: Jira](plugins/tech-insights-jira.md)          | tech-insights module   | Per-component Jira health facts: bugs, blockers, tech debt, cycle time                           |
 | [Tech Insights: stack](plugins/tech-insights-stack.md)        | tech-insights module   | Detects build tool, language version, framework and metrics library from GitHub                  |
+| [Go template playground](plugins/gotemplate-playground.md)    | toolbox module         | Renders Go templates against the sprig, sprout, helm and external-secrets function sets          |
 
 Two cross-cutting guides cover the setup that is shared between them:
 
@@ -61,6 +62,37 @@ depending on the plugin. Each plugin page shows exactly where.
 Plugins that store data (`bruno-backend`, `secure-share-backend`) run their own migrations at
 startup against the database the backend hands them, so there is no migration step to run by
 hand. They honour `backend.database.migrations.skip` if you manage schema yourself.
+
+## Running the plugins locally
+
+The repository carries its own throwaway Backstage app in `packages/app` and `packages/backend`,
+so a plugin can be exercised without wiring it into a real instance:
+
+```bash
+yarn install
+yarn start          # backend on :7007, frontend on :3000
+```
+
+It runs on an in-memory SQLite database with guest auth, so it needs no credentials and keeps no
+state between runs. `examples/entities.yaml` supplies a component to hang entity-scoped tabs off.
+
+The app uses the **new frontend system**, because the toolbox module requires it. The three
+legacy-system frontend plugins are adapted in `packages/app/src/App.tsx` with `convertLegacyPlugin`
+and `compatWrapper`.
+
+Backend plugins that need third-party credentials — the GCP catalog provider, `bruno-backend` and
+the two tech-insights modules — are listed but commented out in `packages/backend/src/index.ts`.
+Put their credentials in `app-config.local.yaml` and uncomment the one you want.
+
+!!! note "The Go template playground needs its engine built first"
+
+    ```bash
+    yarn workspace @sbordeyne/backstage-plugin-toolbox-module-gotemplate build:wasm
+    cp plugins/toolbox-module-gotemplate/static/gotemplate.wasm packages/app/public/
+    ```
+
+    The dev app serves it from `/gotemplate.wasm` rather than the public CDN. It is 83 MB and is
+    deliberately not committed.
 
 ## Configuration schemas
 

@@ -14,3 +14,8 @@ site
 !.yarn/plugins
 !.yarn/releases
 .pnp.*
+
+# Local dev app: the 83MB Go template engine is built, not committed
+packages/app/public/gotemplate.wasm
+app-config.local.yaml
+*.sqlite

@@ -1,0 +1,632 @@
+/*
+ * Every colour, radius, space and font here is a Backstage UI theme token, so
+ * the tool follows whatever theme is active instead of carrying its own palette.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bui-space-3);
+  min-width: 0;
+  color: var(--bui-fg-primary);
+}
+
+/* --- function set tabs --- */
+
+.setRow {
+  display: flex;
+  align-items: center;
+  gap: var(--bui-space-2);
+}
+
+.setTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bui-space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.setTab {
+  appearance: none;
+  font-family: var(--bui-font-regular);
+  font-size: var(--bui-font-size-2);
+  font-weight: var(--bui-font-weight-bold);
+  cursor: pointer;
+  padding: var(--bui-space-2) var(--bui-space-4);
+  border-radius: var(--bui-radius-full);
+  color: var(--bui-fg-primary);
+  background: var(--bui-bg-neutral-2);
+  border: 1px solid var(--bui-border-1);
+}
+
+.setTab:hover {
+  background: var(--bui-bg-neutral-2-hover);
+}
+
+.setTab:focus-visible {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 2px;
+}
+
+/*
+ * The selected pill uses the solid background token with its matching
+ * foreground token. These two are defined as a pair, which is what keeps the
+ * label readable in both light and dark themes.
+ */
+.setTabActive,
+.setTabActive:hover {
+  background: var(--bui-bg-solid);
+  color: var(--bui-fg-solid);
+  border-color: var(--bui-bg-solid);
+}
+
+.setDescription {
+  margin: 0;
+  color: var(--bui-fg-secondary);
+  font-size: var(--bui-font-size-2);
+  line-height: 1.5;
+}
+
+/* --- advanced settings --- */
+
+.advancedAnchor {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.iconButton {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bui-space-2);
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--bui-radius-3);
+  color: var(--bui-fg-primary);
+  background: var(--bui-bg-neutral-2);
+  border: 1px solid var(--bui-border-1);
+}
+
+.iconButton:hover {
+  background: var(--bui-bg-neutral-2-hover);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 2px;
+}
+
+.iconButtonActive {
+  background: var(--bui-bg-neutral-3-pressed);
+}
+
+.hamburger {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: var(--bui-radius-full);
+  background: currentColor;
+  position: relative;
+}
+
+.hamburger::before,
+.hamburger::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 16px;
+  height: 2px;
+  border-radius: var(--bui-radius-full);
+  background: currentColor;
+}
+
+.hamburger::before {
+  top: -5px;
+}
+
+.hamburger::after {
+  top: 5px;
+}
+
+/* Anchored to the right edge of the trigger. */
+.advancedPanel {
+  position: absolute;
+  top: calc(100% + var(--bui-space-2));
+  right: 0;
+  z-index: 20;
+  width: min(420px, calc(100vw - var(--bui-space-8)));
+  padding: var(--bui-space-4);
+  border-radius: var(--bui-radius-4);
+  border: 1px solid var(--bui-border-1);
+  background: var(--bui-bg-neutral-1);
+  box-shadow: var(--bui-shadow);
+}
+
+.advancedTitle {
+  margin: 0 0 var(--bui-space-3);
+  font-size: var(--bui-font-size-1);
+  font-weight: var(--bui-font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bui-fg-secondary);
+}
+
+.advancedGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--bui-space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bui-space-1);
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: var(--bui-font-size-1);
+  color: var(--bui-fg-secondary);
+}
+
+.fieldHint {
+  font-size: var(--bui-font-size-1);
+  color: var(--bui-fg-secondary);
+  margin: var(--bui-space-1) 0 0;
+}
+
+.input,
+.select {
+  font-family: var(--bui-font-regular);
+  font-size: var(--bui-font-size-2);
+  color: var(--bui-fg-primary);
+  background: var(--bui-bg-neutral-2);
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-2);
+  padding: var(--bui-space-2);
+  min-width: 0;
+  width: 100%;
+}
+
+.input:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: -1px;
+}
+
+.input:disabled,
+.select:disabled {
+  color: var(--bui-fg-disabled);
+  background: var(--bui-bg-neutral-2-disabled);
+}
+
+.advancedActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--bui-space-2);
+  margin-top: var(--bui-space-4);
+}
+
+.button {
+  appearance: none;
+  font-family: var(--bui-font-regular);
+  font-size: var(--bui-font-size-2);
+  cursor: pointer;
+  padding: var(--bui-space-2) var(--bui-space-3);
+  border-radius: var(--bui-radius-2);
+  color: var(--bui-fg-primary);
+  background: var(--bui-bg-neutral-2);
+  border: 1px solid var(--bui-border-1);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--bui-bg-neutral-2-hover);
+}
+
+.button:disabled {
+  color: var(--bui-fg-disabled);
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 2px;
+}
+
+/* --- workspace layout --- */
+
+/*
+ * The editors are sized from the viewport rather than given a fixed pixel
+ * height, so the page owns the scrollbar and you are not scrolling inside a
+ * short editor box.
+ */
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--bui-space-3);
+  height: clamp(320px, 58vh, 780px);
+}
+
+/* Collapsing the output hands its column width to the template. */
+.workspaceCollapsed {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.dataPane {
+  height: clamp(200px, 28vh, 420px);
+}
+
+@media (max-width: 900px) {
+  .workspace,
+  .workspaceCollapsed,
+  .advancedGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace,
+  .workspaceCollapsed {
+    height: auto;
+  }
+
+  .pane {
+    height: clamp(280px, 50vh, 560px);
+  }
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--bui-radius-3);
+  border: 1px solid var(--bui-border-1);
+  overflow: hidden;
+  background: var(--bui-bg-neutral-1);
+}
+
+.paneHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bui-space-2);
+  padding: var(--bui-space-2) var(--bui-space-3);
+  font-size: var(--bui-font-size-1);
+  font-weight: var(--bui-font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bui-fg-secondary);
+  border-bottom: 1px solid var(--bui-border-1);
+  background: var(--bui-bg-neutral-2);
+  flex: 0 0 auto;
+}
+
+.paneHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: var(--bui-space-2);
+}
+
+.paneHint,
+.status {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: var(--bui-font-weight-regular);
+  color: var(--bui-fg-secondary);
+}
+
+/* Gives Monaco a definite height to fill, which `height: 100%` needs. */
+.editorHost {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The collapsed output shrinks to a vertical strip that reopens it. */
+.outputCollapsed {
+  width: 40px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: var(--bui-space-3);
+  background: var(--bui-bg-neutral-2);
+}
+
+.outputCollapsed:hover {
+  background: var(--bui-bg-neutral-2-hover);
+}
+
+.outputCollapsedLabel {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: var(--bui-font-size-1);
+  font-weight: var(--bui-font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bui-fg-secondary);
+  user-select: none;
+}
+
+.outputCollapsedBadge {
+  margin-top: var(--bui-space-2);
+  writing-mode: vertical-rl;
+  font-size: var(--bui-font-size-1);
+  color: var(--bui-fg-danger);
+}
+
+.collapseButton {
+  appearance: none;
+  cursor: pointer;
+  font-family: var(--bui-font-regular);
+  font-size: var(--bui-font-size-1);
+  line-height: 1;
+  padding: var(--bui-space-1) var(--bui-space-2);
+  border-radius: var(--bui-radius-2);
+  color: var(--bui-fg-secondary);
+  background: transparent;
+  border: 1px solid var(--bui-border-1);
+}
+
+.collapseButton:hover {
+  background: var(--bui-bg-neutral-3);
+  color: var(--bui-fg-primary);
+}
+
+.collapseButton:focus-visible {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 1px;
+}
+
+.output {
+  margin: 0;
+  padding: var(--bui-space-3);
+  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  font-family: var(--bui-font-monospace);
+  font-size: var(--bui-font-size-2);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--bui-fg-primary);
+}
+
+.outputEmpty {
+  color: var(--bui-fg-secondary);
+  font-style: italic;
+}
+
+.error {
+  margin: 0;
+  padding: var(--bui-space-3);
+  flex: 0 0 auto;
+  max-height: 40%;
+  overflow: auto;
+  font-family: var(--bui-font-monospace);
+  font-size: var(--bui-font-size-2);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-bottom: 1px solid var(--bui-border-danger);
+  color: var(--bui-fg-danger-on-bg);
+  background: var(--bui-bg-danger);
+}
+
+.errorPhase {
+  display: inline-block;
+  margin-right: var(--bui-space-2);
+  padding: 1px var(--bui-space-2);
+  border-radius: var(--bui-radius-full);
+  font-family: var(--bui-font-regular);
+  font-size: var(--bui-font-size-1);
+  font-weight: var(--bui-font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--bui-border-danger);
+}
+
+/* --- load / failure states --- */
+
+.loading {
+  padding: var(--bui-space-8) var(--bui-space-4);
+  text-align: center;
+  border-radius: var(--bui-radius-3);
+  border: 1px dashed var(--bui-border-2);
+  color: var(--bui-fg-primary);
+}
+
+.loadingTitle {
+  font-weight: var(--bui-font-weight-bold);
+  margin-bottom: var(--bui-space-2);
+}
+
+.loadingHint {
+  font-size: var(--bui-font-size-2);
+  color: var(--bui-fg-secondary);
+  line-height: 1.6;
+  margin: 0 auto;
+  max-width: 60ch;
+}
+
+.loadFailure {
+  border-color: var(--bui-border-danger);
+}
+
+.code {
+  font-family: var(--bui-font-monospace);
+  font-size: 0.9em;
+  padding: 1px var(--bui-space-1);
+  border-radius: var(--bui-radius-1);
+  background: var(--bui-bg-neutral-3);
+}
+
+/* --- function reference --- */
+
+.reference {
+  border-radius: var(--bui-radius-3);
+  border: 1px solid var(--bui-border-1);
+  overflow: hidden;
+  background: var(--bui-bg-neutral-1);
+}
+
+.referenceHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--bui-space-3);
+  padding: var(--bui-space-2) var(--bui-space-3);
+  background: var(--bui-bg-neutral-2);
+}
+
+.referenceTitle {
+  font-size: var(--bui-font-size-1);
+  font-weight: var(--bui-font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bui-fg-secondary);
+}
+
+.referenceFilter {
+  margin-left: auto;
+  max-width: 220px;
+}
+
+.referenceBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+  gap: var(--bui-space-4);
+  padding: var(--bui-space-3);
+  border-top: 1px solid var(--bui-border-1);
+}
+
+@media (max-width: 900px) {
+  .referenceBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.categoryList {
+  max-height: 260px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bui-space-3);
+}
+
+.categoryName {
+  font-size: var(--bui-font-size-1);
+  font-weight: var(--bui-font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bui-fg-secondary);
+  margin-bottom: var(--bui-space-2);
+}
+
+.functionList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bui-space-1);
+}
+
+.functionChip {
+  appearance: none;
+  cursor: pointer;
+  font-family: var(--bui-font-monospace);
+  font-size: var(--bui-font-size-1);
+  color: var(--bui-fg-primary);
+  padding: var(--bui-space-1) var(--bui-space-2);
+  border-radius: var(--bui-radius-2);
+  border: 1px solid var(--bui-border-1);
+  background: var(--bui-bg-neutral-2);
+}
+
+.functionChip:hover {
+  background: var(--bui-bg-neutral-2-hover);
+}
+
+.functionChip:focus-visible {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 1px;
+}
+
+.functionChipActive,
+.functionChipActive:hover {
+  background: var(--bui-bg-solid);
+  color: var(--bui-fg-solid);
+  border-color: var(--bui-bg-solid);
+}
+
+.noResults {
+  font-size: var(--bui-font-size-2);
+  color: var(--bui-fg-secondary);
+}
+
+/* --- function documentation --- */
+
+.doc {
+  border-radius: var(--bui-radius-3);
+  border: 1px solid var(--bui-border-1);
+  background: var(--bui-bg-neutral-2);
+  padding: var(--bui-space-3);
+  align-self: start;
+  position: sticky;
+  top: 0;
+}
+
+.docEmpty {
+  color: var(--bui-fg-secondary);
+  font-size: var(--bui-font-size-2);
+  line-height: 1.6;
+}
+
+.docName {
+  font-family: var(--bui-font-monospace);
+  font-size: var(--bui-font-size-4);
+  font-weight: var(--bui-font-weight-bold);
+  margin: 0 0 var(--bui-space-2);
+  word-break: break-word;
+}
+
+.docCategory {
+  display: inline-block;
+  font-size: var(--bui-font-size-1);
+  color: var(--bui-fg-secondary);
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-full);
+  padding: 1px var(--bui-space-2);
+  margin-bottom: var(--bui-space-3);
+}
+
+.docLabel {
+  font-size: var(--bui-font-size-1);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bui-fg-secondary);
+  margin: var(--bui-space-3) 0 var(--bui-space-1);
+}
+
+.docSignature,
+.docUsage {
+  margin: 0;
+  font-family: var(--bui-font-monospace);
+  font-size: var(--bui-font-size-2);
+  line-height: 1.5;
+  padding: var(--bui-space-2);
+  border-radius: var(--bui-radius-2);
+  background: var(--bui-bg-neutral-3);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.docActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bui-space-2);
+  margin-top: var(--bui-space-3);
+}
+
+.docLink {
+  font-size: var(--bui-font-size-2);
+  color: var(--bui-fg-primary);
+}

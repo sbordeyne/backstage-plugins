@@ -1,0 +1,54 @@
+{
+  "name": "@sbordeyne/backstage-plugin-toolbox-module-gotemplate",
+  "description": "A Go template playground for the Backstage toolbox, backed by the real Go text/template engine compiled to WebAssembly",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "publishConfig": {
+    "access": "public",
+    "main": "dist/index.esm.js",
+    "types": "dist/index.d.ts"
+  },
+  "backstage": {
+    "role": "frontend-plugin-module",
+    "pluginId": "toolbox"
+  },
+  "configSchema": "config.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "start": "backstage-cli package start",
+    "build": "backstage-cli package build",
+    "build:wasm": "./wasm/build.sh",
+    "lint": "backstage-cli package lint",
+    "test": "backstage-cli package test",
+    "clean": "backstage-cli package clean",
+    "prepack": "yarn build:wasm && backstage-cli package prepack",
+    "postpack": "backstage-cli package postpack"
+  },
+  "dependencies": {
+    "@backstage/core-plugin-api": "backstage:^",
+    "@backstage/frontend-plugin-api": "backstage:^",
+    "@drodil/backstage-plugin-toolbox-react": "^2.0.0",
+    "@monaco-editor/react": "^4.7.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@backstage/cli": "backstage:^",
+    "@backstage/test-utils": "backstage:^",
+    "@testing-library/dom": "^9.3.4",
+    "@testing-library/jest-dom": "^6.10.0",
+    "@testing-library/react": "^14.3.1",
+    "@testing-library/user-event": "^14.6.4",
+    "@types/react": "^18.3.31",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "files": [
+    "dist",
+    "static",
+    "config.d.ts"
+  ]
+}

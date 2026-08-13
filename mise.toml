@@ -1,6 +1,7 @@
 [tools]
 node = "22"
 uv = "latest"
+go = "1.26.5"
 "pipx:properdocs" = { version = "latest", uvx_args = """
   --with mkdocs-material
   --with mkdocs-mermaid2-plugin

@@ -1,0 +1,3 @@
+# Vendored verbatim from the Go distribution by wasm/build.sh — not our code to
+# restyle, and it must stay byte-identical to the toolchain that built the wasm.
+src/engine/wasm_exec.js

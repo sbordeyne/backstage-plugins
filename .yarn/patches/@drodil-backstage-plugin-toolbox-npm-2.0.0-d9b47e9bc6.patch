@@ -1,0 +1,21 @@
+diff --git a/dist/components/Root/ToolPage.esm.js b/dist/components/Root/ToolPage.esm.js
+index 2f5beb2c73e5cc89af75ffd132caf8c1340f3818..b502df710b705a70eb152132f46c82312a73ad62 100644
+--- a/dist/components/Root/ToolPage.esm.js
++++ b/dist/components/Root/ToolPage.esm.js
+@@ -6,10 +6,14 @@ import { ToolContainer } from './ToolContainer.esm.js';
+ import { getToolTitle } from '../../utils/tools.esm.js';
+ 
+ const ToolPage = (props) => {
+-  const { extraTools } = props;
++  const { extraTools, tools } = props;
+   const params = useParams();
+   const { t } = useToolboxTranslation();
+-  const allTools = [...extraTools ?? [], ...defaultTools];
++  // Mirrors getSortedTools: an explicit `tools` list (which is how the new
++  // frontend system delivers ToolboxToolBlueprint extensions) replaces the
++  // defaults entirely. Without this, tools registered through the blueprint
++  // render in the toolbox list but 404 on /toolbox/tool/:id.
++  const allTools = tools ?? [...extraTools ?? [], ...defaultTools];
+   const tool = allTools.find(({ id }) => id === params.id);
+   if (!tool) {
+     return /* @__PURE__ */ jsx(Fragment, { children: t("toolPage.toolNotAvailable") });
