@@ -1,0 +1,202 @@
+---
+name: Release
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - packages/bruno-report-type/package.json
+      - packages/secure-share-common/package.json
+      - plugins/*/package.json
+      - .github/workflows/release.yaml
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List what would be released without publishing or tagging
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  # Never cancel a release in flight: a cancelled run can leave a package published
+  # on npm with no tag and no release to go with it.
+  group: release
+  cancel-in-progress: false
+jobs:
+  release:
+    name: Publish bumped packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Tags are read to work out what changed since each package's last release.
+          fetch-depth: 0
+
+      - name: Set up mise
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          install: true
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      # A broken package is worse than a late one, so the whole repo is verified before
+      # anything reaches npm. `lint:all` rather than `lint`, which diffs against
+      # origin/master and so checks nothing when running on master.
+      - name: Typecheck
+        run: yarn tsc
+      - name: Lint
+        run: yarn lint:all
+      - name: Check formatting
+        run: yarn prettier:check
+      - name: Test
+        run: yarn test
+        env:
+          CI: 'true'
+
+      # `prepack` rewrites each manifest to point at dist/, so publishing without building
+      # first ships a package whose entry points do not exist.
+      - name: Build
+        run: yarn build:all
+
+      # The npm registry is the source of truth for what has been released, rather than
+      # the diff of this push: a re-run, a squashed merge or a run that failed halfway
+      # then all reach the same answer.
+      - name: Find packages to release
+        id: find
+        env:
+          REGISTRY: https://registry.npmjs.org
+        run: |
+          set -euo pipefail
+          : > releases.txt
+          for dir in $(yarn workspaces list --json | jq -r 'select(.location != ".") | .location'); do
+            manifest="${dir}/package.json"
+            name=$(jq -r '.name' "${manifest}")
+            version=$(jq -r '.version' "${manifest}")
+            private=$(jq -r '.private // false' "${manifest}")
+
+            if [ "${private}" = "true" ]; then
+              continue
+            fi
+
+            # The registry is asked directly rather than through a client, so that "not
+            # published" (404) is told apart from "the registry did not answer". Guessing
+            # on a transient error would mean attempting to republish the whole monorepo.
+            encoded=$(jq -rn --arg name "${name}" '$name|@uri')
+            status=$(curl -sS -o /dev/null -w '%{http_code}' "${REGISTRY}/${encoded}/${version}")
+
+            case "${status}" in
+              200)
+                echo "already released: ${name}@${version}"
+                ;;
+              404)
+                echo "to release:       ${name}@${version}"
+                printf '%s\t%s\t%s\n' "${name}" "${version}" "${dir}" >> releases.txt
+                ;;
+              *)
+                echo "::error::registry answered ${status} for ${name}@${version}"
+                exit 1
+                ;;
+            esac
+          done
+
+          count=$(wc -l < releases.txt | tr -d ' ')
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+          if [ "${count}" = "0" ]; then
+            echo "No package versions to release." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Configure git identity
+        if: steps.find.outputs.count != '0' && inputs.dry_run != true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Publish, tag and release
+        if: steps.find.outputs.count != '0' && inputs.dry_run != true
+        env:
+          # Yarn reads the npm credential from this variable; the secret itself is an
+          # npm automation token with publish rights on the @sbordeyne scope.
+          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASES_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag
+        run: |
+          set -uo pipefail
+          failed=0
+
+          while IFS=$'\t' read -r name version dir <&3; do
+            # Tags drop the npm scope: every package here shares one, and `@scope/name`
+            # in a ref makes for an awkward tag.
+            tag="${name#@*/}-${version}"
+            echo "::group::${name}@${version}"
+
+            if ! yarn workspace "${name}" npm publish --access public --tolerate-republish; then
+              echo "::error::failed to publish ${name}@${version}"
+              failed=1
+              echo "::endgroup::"
+              continue
+            fi
+
+            # Notes are the commits touching this package since its own last release,
+            # which in a monorepo is far more useful than the repo-wide history. The
+            # previous tag is found before this one is created, so it finds the right one.
+            previous=$(git tag --list "${name#@*/}-*" --sort=-v:refname | grep -v "^${tag}$" | head -n 1 || true)
+            range="${previous:+${previous}..}HEAD"
+            changes=$(git log --no-merges --format='- %s (%h)' "${range}" -- "${dir}")
+            {
+              echo "\`${name}@${version}\` is on npm:"
+              echo
+              echo "\`\`\`bash"
+              echo "yarn add ${name}@${version}"
+              echo "\`\`\`"
+              echo
+              echo "### Changes"
+              echo
+              if [ -z "${changes}" ]; then
+                echo "- Initial release"
+              else
+                echo "${changes}" | head -n 50
+                if [ "$(echo "${changes}" | wc -l)" -gt 50 ]; then
+                  echo "- …and more, see the full history"
+                fi
+              fi
+            } > notes.md
+
+            # The tag is only created once the package is on npm, so a tag always means a
+            # released version rather than an attempted one.
+            if git rev-parse -q --verify "refs/tags/${tag}" > /dev/null; then
+              echo "tag ${tag} already exists"
+            elif git tag -a "${tag}" -m "${name} v${version}" && git push origin "refs/tags/${tag}"; then
+              echo "tagged ${tag}"
+            else
+              echo "::error::failed to tag ${tag}"
+              failed=1
+              echo "::endgroup::"
+              continue
+            fi
+
+            if gh release view "${tag}" > /dev/null 2>&1; then
+              echo "release ${tag} already exists"
+            elif ! gh release create "${tag}" --title "${name} v${version}" --notes-file notes.md; then
+              echo "::error::failed to create release for ${tag}"
+              failed=1
+            fi
+
+            echo "- \`${name}@${version}\` → [\`${tag}\`](${RELEASES_URL}/${tag})" >> "$GITHUB_STEP_SUMMARY"
+            echo "::endgroup::"
+          done 3< releases.txt
+
+          exit "${failed}"
+
+      - name: Report dry run
+        if: steps.find.outputs.count != '0' && inputs.dry_run == true
+        run: |
+          set -euo pipefail
+          echo "### Would release" >> "$GITHUB_STEP_SUMMARY"
+          while IFS=$'\t' read -r name version dir <&3; do
+            echo "- \`${name}@${version}\` as tag \`${name#@*/}-${version}\`" >> "$GITHUB_STEP_SUMMARY"
+          done 3< releases.txt
