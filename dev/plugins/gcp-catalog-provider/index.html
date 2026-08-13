@@ -1567,7 +1567,7 @@ grant them.</p>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">ownerLabel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage.io/owner-ref</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="nt">systemLabel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">backstage.io/system-ref</span>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">      </span><span class="c1"># Every entity of a project lands together.</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">      </span><span class="nt">defaultNamespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gcp-${projectId}</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">      </span><span class="nt">defaultNamespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gcp-{{projectId}}</span>
 <a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">      </span><span class="nt">service-account</span><span class="p">:</span>
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
@@ -1627,7 +1627,7 @@ grant them.</p>
 <a id="__codelineno-3-67" name="__codelineno-3-67" href="#__codelineno-3-67"></a><span class="w">        </span><span class="nt">projects</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">my-project</span><span class="p p-Indicator">]</span>
 <a id="__codelineno-3-68" name="__codelineno-3-68" href="#__codelineno-3-68"></a><span class="w">        </span><span class="nt">extraLinks</span><span class="p">:</span>
 <a id="__codelineno-3-69" name="__codelineno-3-69" href="#__codelineno-3-69"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Runbook</span>
-<a id="__codelineno-3-70" name="__codelineno-3-70" href="#__codelineno-3-70"></a><span class="w">            </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://wiki.example.com/db/${name}</span>
+<a id="__codelineno-3-70" name="__codelineno-3-70" href="#__codelineno-3-70"></a><span class="w">            </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://wiki.example.com/db/{{name}}</span>
 <a id="__codelineno-3-71" name="__codelineno-3-71" href="#__codelineno-3-71"></a><span class="w">            </span><span class="nt">icon</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs</span>
 <a id="__codelineno-3-72" name="__codelineno-3-72" href="#__codelineno-3-72"></a><span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> frequency</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> hours</span><span class="p">:</span><span class="w"> </span><span class="nv">6</span><span class="w"> </span><span class="p p-Indicator">},</span><span class="nt"> timeout</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> minutes</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
 <a id="__codelineno-3-73" name="__codelineno-3-73" href="#__codelineno-3-73"></a>
@@ -1707,9 +1707,18 @@ grant them.</p>
 </tr>
 </tbody>
 </table>
-<p>The namespace template accepts <code>${projectId}</code>, <code>${type}</code>, <code>${provider}</code>, <code>${region}</code> and <code>${name}</code>,
-so <code>gcp-${projectId}</code> puts every entity of a project together. The rendered value is lowercased
+<p>The namespace template accepts <code>{{projectId}}</code>, <code>{{type}}</code>, <code>{{provider}}</code>, <code>{{region}}</code> and <code>{{name}}</code>,
+so <code>gcp-{{projectId}}</code> puts every entity of a project together. The rendered value is lowercased
 with anything outside <code>[a-z0-9-]</code> folded to <code>-</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Use <code>{{…}}</code>, not <code>${…}</code></p>
+<p>Backstage's config loader substitutes <code>${VAR}</code> with an <strong>environment variable</strong> before any
+plugin reads the value, and discards the whole key when the variable is unset. Written as
+<code>defaultNamespace: gcp-${projectId}</code>, the key never reaches this module and every entity lands
+in <code>default</code>. <code>{{projectId}}</code> is untouched by the loader. The dollar spelling still works if it
+survives that far, so an existing config can also be fixed by escaping it — <code>gcp-$${projectId}</code>
+— but <code>{{…}}</code> is the spelling to write.</p>
+</div>
 <h3 id="per-provider-keys">Per-provider keys<a class="headerlink" href="#per-provider-keys" title="Permanent link">&para;</a></h3>
 <p>Accepted inside each provider block. <code>owner</code>, <code>ownerLabel</code>, <code>system</code>, <code>systemLabel</code>, <code>namespace</code>,
 <code>region</code>, <code>links</code>, <code>tags</code> and <code>descriptions</code> override the shared value for that provider only.</p>
@@ -2260,7 +2269,7 @@ per refresh over a set that changes constantly. Narrow it with <code>states: [RU
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 13, 2026 14:59:20 UTC">August 13, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 13, 2026 15:12:27 UTC">August 13, 2026</span>
   </span>
 
     
