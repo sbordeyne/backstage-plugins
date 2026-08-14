@@ -2,46 +2,46 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/guides/gcp-permissions/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/guides/integrations/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/guides/releasing/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/plugins/bruno/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/plugins/gcp-catalog-provider/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/plugins/gotemplate-playground/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/plugins/integrated-repositories/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/plugins/secure-share/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/plugins/tech-insights-jira/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
     <url>
          <loc>https://sbordeyne.github.io/backstage-plugins/dev/plugins/tech-insights-stack/</loc>
-         <lastmod>2026-08-13</lastmod>
+         <lastmod>2026-08-14</lastmod>
     </url>
 </urlset>
