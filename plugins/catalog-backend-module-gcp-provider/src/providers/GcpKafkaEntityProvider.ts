@@ -23,7 +23,7 @@ export class GcpKafkaEntityProvider extends GcpRestEntityProvider<managedkafka_v
     clusterId: string,
     region: string | undefined,
     project: string,
-    clusterRef: string,
+    clusterRef: string | undefined,
   ): DeferredEntity | undefined {
     const topicId = lastSegment(topic.name);
     if (!topicId) {
@@ -101,6 +101,9 @@ export class GcpKafkaEntityProvider extends GcpRestEntityProvider<managedkafka_v
       return { items: data.topics, nextPageToken: data.nextPageToken };
     });
 
+    if (!clusterEntity) {
+      return [];
+    }
     return [
       clusterEntity,
       ...topics

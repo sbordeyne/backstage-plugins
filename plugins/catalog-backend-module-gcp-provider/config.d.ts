@@ -54,8 +54,15 @@ interface GcpIamConfig {
   enabled?: boolean;
 
   /**
-   * Member kinds that produce edges: `serviceAccount`, `user`, `group`, `domain`, `public`.
-   * Defaults to `[serviceAccount]` — those are the principals this module ingests entities for.
+   * Member kinds this module pays attention to: `serviceAccount`, `user`, `group`, `domain`,
+   * `public`. Defaults to `[serviceAccount]`.
+   *
+   * Relations are unaffected by widening it — a service account is the only principal this module
+   * ingests an entity for, so there is nothing for a user's or a group's edge to point at. Where it
+   * shows is `annotateResources`, whose annotation lists everyone holding a role on a resource:
+   * adding `user` and `group` answers "who can touch this" for people as well as machines, and
+   * leaving them out keeps the annotation to the identities the graph can actually walk. Dropping
+   * `serviceAccount` from the list switches the access edges off altogether.
    */
   memberTypes?: string[];
 
@@ -81,6 +88,10 @@ interface GcpIamConfig {
    * Whether each resource entity also carries a `cloud.google.com/iam-members` annotation naming
    * who holds roles on it. Defaults to `false`: the relations already answer this for principals
    * the catalog ingests, and this covers the rest at the cost of a wordy annotation.
+   *
+   * Applies to every resource type that has an IAM policy of its own. A type that holds none — a
+   * Cloud NAT gateway, a Dataflow job — carries no annotation however this is set, and `memberTypes`
+   * decides which kinds of principal are listed.
    */
   annotateResources?: boolean;
 
@@ -116,7 +127,14 @@ interface GcpExtraLinkConfig {
   type?: string;
 }
 
-/** Settings shared by every GCP entity provider. */
+/**
+ * Settings shared by every GCP entity provider.
+ *
+ * A provider is enabled by a **mapping** under its config key, so a block relying entirely on the
+ * shared `projects` and `schedule` still has to be written `storage: {}`. A bare `storage:` is null,
+ * which Backstage's config loader discards before this module can see it, and the provider is
+ * silently not registered.
+ */
 interface GcpProviderCommonConfig {
   /**
    * Whether this provider runs at all. Defaults to `true`, so a provider is on as soon as its
@@ -125,11 +143,17 @@ interface GcpProviderCommonConfig {
    */
   enabled?: boolean;
 
-  /** GCP projects to enumerate. */
-  projects: string[];
+  /**
+   * GCP projects to enumerate, overriding the shared `projects`. When neither is set the provider
+   * fails to start rather than ingesting nothing quietly.
+   *
+   * This replaces the shared list rather than adding to it, so narrowing one resource type to a
+   * single project stays a local edit.
+   */
+  projects?: string[];
 
-  /** How often this provider refreshes. */
-  schedule: SchedulerServiceTaskScheduleDefinitionConfig;
+  /** How often this provider refreshes, overriding the shared `schedule`. */
+  schedule?: SchedulerServiceTaskScheduleDefinitionConfig;
 
   /**
    * Entity ref set as `spec.owner` on resources that carry no owner label, overriding
@@ -194,16 +218,37 @@ export interface Config {
   catalog?: {
     providers?: {
       gcp?: {
+        /**
+         * GCP projects every provider enumerates, unless it names its own `projects`.
+         *
+         * Most installations point every provider at the same estate, and this is what keeps that
+         * list in one place instead of repeated under each of the fifty-odd provider keys.
+         */
+        projects?: string[];
+
+        /**
+         * How often every provider refreshes, unless it sets its own `schedule`.
+         *
+         * Worth overriding per provider for the resource types that churn — Compute instances
+         * above all, where every refresh rewrites the whole set.
+         */
+        schedule?: SchedulerServiceTaskScheduleDefinitionConfig;
+
         /** Default for every provider's `owner`. Falls back to `unknown`. */
         defaultOwner?: string;
 
         /**
          * Default for every provider's `ownerLabel`: the GCP label whose value names the entity
-         * owning a resource. Falls back to `backstage.io/owner-ref`.
+         * owning a resource. Falls back to `backstage_io_owner-ref`.
          *
-         * GCP rejects label keys containing `.` or `/`, so the key is also matched with those
-         * folded to underscores — the default is readable as `backstage_io_owner-ref` on an actual
-         * resource. Values are restricted the same way, so they are usually a bare name such as
+         * A GCP label key is 1-63 characters, opens with a lowercase letter and holds only
+         * lowercase letters, digits, dashes and underscores — a Backstage-style
+         * `backstage.io/owner-ref` is rejected by the API, which is why the default is spelled with
+         * underscores. A key configured here that GCP would reject is reported as an error and read
+         * under its folded spelling; one that cannot be folded into a legal key at all stops the
+         * provider from starting, since it could never match a label.
+         *
+         * Values are restricted the same way, so they are usually a bare name such as
          * `platform-team`, read as a group in the default namespace.
          */
         ownerLabel?: string;
@@ -217,9 +262,9 @@ export interface Config {
 
         /**
          * Default for every provider's `systemLabel`: the GCP label whose value names the system a
-         * resource belongs to. Falls back to `backstage.io/system-ref`, matched under the same
-         * spellings as `ownerLabel`. A bare value such as `payments` is read as a system in the
-         * default namespace.
+         * resource belongs to. Falls back to `backstage_io_system-ref`, and is checked the same way
+         * as `ownerLabel`. A bare value such as `payments` is read as a system in the default
+         * namespace.
          */
         systemLabel?: string;
 

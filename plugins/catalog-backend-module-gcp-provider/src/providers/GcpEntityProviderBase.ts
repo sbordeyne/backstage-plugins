@@ -7,10 +7,8 @@ import {
   readSchedulerServiceTaskScheduleDefinitionFromConfig,
 } from '@backstage/backend-plugin-api';
 import { EntityLink } from '@backstage/catalog-model';
-import { JWTInput } from 'google-auth-library';
 import { google } from 'googleapis';
 
-import fs from 'fs';
 import { createGoogleAuth, GcpGoogleAuth } from '../googleAuth';
 
 export type { GcpGoogleAuth };
@@ -19,21 +17,24 @@ import {
   ANNOTATION_GCP_ASSET_NAME,
   ANNOTATION_GCP_PROJECT_ID,
   DEFAULT_NAMESPACE_TEMPLATE,
+  FALLBACK_NAMESPACE,
   DEFAULT_OWNER_LABEL,
   DEFAULT_SYSTEM_LABEL,
 } from '../constants';
 import { buildLinks, DEFAULT_LINK_OPTIONS, LinkOptions } from '../links';
-import { GcpAssetIndex, GcpAssetIndexOptions, GcpProjectPolicies, getAssetIndex } from '../iam';
+import { GcpAssetIndex, GcpAssetIndexOptions, GcpProjectPolicies, memberMatchesTypes, parseMember } from '../iam';
 import { RelationMode } from '../relations';
 import { GcpRefBuilder } from '../processors/GcpRefBuilder';
 import {
   formatResourceName,
+  formatResourceNameOrUndefined,
   GcpLabels,
   GcpResourceContext,
   lastSegment,
   parseOwnerRef,
   parseResourceUrl,
   parseSystemRef,
+  readConfiguredLabelKey,
   readLabel,
   regionAnnotation,
   renderTemplate,
@@ -43,6 +44,14 @@ import {
   toEntityLabels,
   toEntityTags,
 } from '../utils';
+
+/**
+ * Supplies the shared IAM index, on first use rather than up front.
+ *
+ * An installation with IAM switched off never calls it, so it never builds a Cloud Asset client or
+ * resolves credentials for one.
+ */
+export type GcpAssetIndexFactory = () => GcpAssetIndex;
 
 /** A resource as the provider knows it, before it is turned into entity metadata. */
 export interface GcpResource {
@@ -124,7 +133,6 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
   protected readonly gcpConfig: Config;
   protected readonly client: TClient;
   private connection?: EntityProviderConnection;
-  protected credentials?: JWTInput;
   /**
    * Credentials for the `googleapis` clients.
    *
@@ -138,23 +146,65 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * that adds relations to its entities can never disagree about where an entity lives.
    */
   protected readonly refs: GcpRefBuilder;
+  /** Supplies the index the module built to share, when it handed one over. */
+  private readonly injectedAssetIndex?: GcpAssetIndexFactory;
+  /** Resolved once by {@link assetIndex}, so a provider does not rebuild a client per refresh. */
+  private ownAssetIndex?: GcpAssetIndex;
+  /** Backing store for {@link once}. */
+  private readonly memo = new Map<string, unknown>();
 
-  public constructor(logger: LoggerService, scheduler: SchedulerService, config: Config) {
+  public constructor(
+    logger: LoggerService,
+    scheduler: SchedulerService,
+    config: Config,
+    assetIndex?: GcpAssetIndexFactory,
+  ) {
     const gcpConfig = config.getConfig('catalog.providers.gcp');
     const providerConfig = gcpConfig.getConfig(this.getProviderConfigKey());
-    const schedule = readSchedulerServiceTaskScheduleDefinitionFromConfig(providerConfig.getConfig('schedule'));
+    const scheduleConfig = providerConfig.getOptionalConfig('schedule') ?? gcpConfig.getOptionalConfig('schedule');
+    if (!scheduleConfig) {
+      throw new Error(
+        `No schedule for the GCP ${this.getProviderConfigKey()} provider: set 'schedule' on the ` +
+          `provider or on catalog.providers.gcp to share one across providers`,
+      );
+    }
+    const schedule = readSchedulerServiceTaskScheduleDefinitionFromConfig(scheduleConfig);
+    if (!(providerConfig.getOptionalStringArray('projects') ?? gcpConfig.getOptionalStringArray('projects'))?.length) {
+      throw new Error(
+        `No projects for the GCP ${this.getProviderConfigKey()} provider: set 'projects' on the ` +
+          `provider or on catalog.providers.gcp to share one list across providers`,
+      );
+    }
 
-    // Some clients take a `GoogleAuth`, others take the parsed key directly, so both forms are kept.
-    this.credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS
-      ? JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'))
-      : undefined;
     this.logger = logger;
     this.scheduleFn = this.createScheduleFn(scheduler.createScheduledTaskRunner(schedule));
     this.config = providerConfig;
     this.gcpConfig = gcpConfig;
     this.refs = new GcpRefBuilder(gcpConfig, logger);
     this.googleAuth = createGoogleAuth(logger);
+    this.injectedAssetIndex = assetIndex;
+    // Resolved now rather than on first use: a label key GCP would reject matches nothing, and
+    // that reads as the module not working rather than as a typo. `tags.labelKeys` is checked with
+    // them, since it names label keys too.
+    void this.ownerLabel;
+    void this.systemLabel;
+    void this.tagOptions;
     this.client = this.getClient();
+  }
+
+  /**
+   * A configured value, resolved on first use and kept.
+   *
+   * Every option below is read once per resource otherwise — `tagOptions` alone is a dozen lookups —
+   * which for an estate-sized provider is millions of config traversals per refresh, all of them
+   * re-deriving something that cannot change: backend configuration is fixed for the life of the
+   * process, so a provider's settings are constants it happens to read rather than compute.
+   */
+  protected once<T>(key: string, compute: () => T): T {
+    if (!this.memo.has(key)) {
+      this.memo.set(key, compute());
+    }
+    return this.memo.get(key) as T;
   }
 
   /**
@@ -166,7 +216,9 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * visible rather than silently misfiled.
    */
   protected get defaultOwner(): string {
-    return this.config.getOptionalString('owner') ?? this.gcpConfig.getOptionalString('defaultOwner') ?? 'unknown';
+    return this.once('defaultOwner', () => {
+      return this.config.getOptionalString('owner') ?? this.gcpConfig.getOptionalString('defaultOwner') ?? 'unknown';
+    });
   }
 
   /**
@@ -174,10 +226,14 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * the shared `catalog.providers.gcp.ownerLabel`, then {@link DEFAULT_OWNER_LABEL}.
    */
   protected get ownerLabel(): string {
-    return (
-      this.config.getOptionalString('ownerLabel') ??
-      this.gcpConfig.getOptionalString('ownerLabel') ??
-      DEFAULT_OWNER_LABEL
+    return this.once('ownerLabel', () =>
+      readConfiguredLabelKey(
+        this.config.getOptionalString('ownerLabel') ??
+          this.gcpConfig.getOptionalString('ownerLabel') ??
+          DEFAULT_OWNER_LABEL,
+        'ownerLabel',
+        this.logger,
+      ),
     );
   }
 
@@ -210,10 +266,14 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * Label carrying the entity ref of a resource's system, resolved like {@link ownerLabel}.
    */
   protected get systemLabel(): string {
-    return (
-      this.config.getOptionalString('systemLabel') ??
-      this.gcpConfig.getOptionalString('systemLabel') ??
-      DEFAULT_SYSTEM_LABEL
+    return this.once('systemLabel', () =>
+      readConfiguredLabelKey(
+        this.config.getOptionalString('systemLabel') ??
+          this.gcpConfig.getOptionalString('systemLabel') ??
+          DEFAULT_SYSTEM_LABEL,
+        'systemLabel',
+        this.logger,
+      ),
     );
   }
 
@@ -226,7 +286,9 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * dangling ref.
    */
   protected get defaultSystem(): string | undefined {
-    return this.config.getOptionalString('system') ?? this.gcpConfig.getOptionalString('defaultSystem');
+    return this.once('defaultSystem', () => {
+      return this.config.getOptionalString('system') ?? this.gcpConfig.getOptionalString('defaultSystem');
+    });
   }
 
   /**
@@ -261,7 +323,9 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * guessed one silently misplaces the resource.
    */
   protected get defaultRegion(): string | undefined {
-    return this.config.getOptionalString('region') ?? this.gcpConfig.getOptionalString('defaultRegion');
+    return this.once('defaultRegion', () => {
+      return this.config.getOptionalString('region') ?? this.gcpConfig.getOptionalString('defaultRegion');
+    });
   }
 
   /**
@@ -269,11 +333,13 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * falling back to {@link DEFAULT_NAMESPACE_TEMPLATE}.
    */
   protected get namespaceTemplate(): string {
-    return (
-      this.config.getOptionalString('namespace') ??
-      this.gcpConfig.getOptionalString('defaultNamespace') ??
-      DEFAULT_NAMESPACE_TEMPLATE
-    );
+    return this.once('namespaceTemplate', () => {
+      return (
+        this.config.getOptionalString('namespace') ??
+        this.gcpConfig.getOptionalString('defaultNamespace') ??
+        DEFAULT_NAMESPACE_TEMPLATE
+      );
+    });
   }
 
   /** Namespace an entity of this provider lands in. */
@@ -304,9 +370,9 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
       rendered = renderTemplate(template, context);
     } catch (error) {
       this.logger.warn(`Ignoring namespace template '${template}'`, error as Error);
-      return DEFAULT_NAMESPACE_TEMPLATE;
+      return FALLBACK_NAMESPACE;
     }
-    return formatResourceName(rendered) || DEFAULT_NAMESPACE_TEMPLATE;
+    return formatResourceNameOrUndefined(rendered) ?? FALLBACK_NAMESPACE;
   }
 
   /**
@@ -315,15 +381,20 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * The namespace comes from that provider's own config block, so a relation still resolves when
    * the two providers are namespaced differently.
    */
-  protected resourceRef(providerConfigKey: string, context: GcpResourceContext & { name: string }): string {
-    const name = formatResourceName(context.name);
-    const namespace = this.namespaceOfProvider(providerConfigKey, { ...context, name });
-    return `resource:${namespace}/${name}`;
+  protected resourceRef(
+    providerConfigKey: string,
+    context: GcpResourceContext & { name: string },
+  ): string | undefined {
+    return this.refs.resourceRef(providerConfigKey, context);
   }
 
   /** Ref of an entity this same provider ingests, for relations between its own resources. */
-  protected ownRef(context: GcpResourceContext & { name: string }): string {
-    const name = formatResourceName(context.name);
+  protected ownRef(context: GcpResourceContext & { name: string }): string | undefined {
+    const name = formatResourceNameOrUndefined(context.name);
+    if (!name) {
+      this.logger.warn(`No entity name can be built from '${context.name}', dropping the relation to it`);
+      return undefined;
+    }
     return `resource:${this.namespaceOf({ ...context, name })}/${name}`;
   }
 
@@ -334,16 +405,18 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * (`serviceAccount:sa@project.iam.gserviceaccount.com`) and a resource path
    * (`projects/p/serviceAccounts/sa@project.iam.gserviceaccount.com`).
    *
-   * The project comes from the account's own email domain, since a resource is regularly used by an
-   * account from another project, and the ref is emitted whether or not that project is enumerated
-   * here — it resolves if the account is ingested later.
+   * A user-managed account names its project in its own email, since a resource is regularly used
+   * by an account from another project, and the ref is emitted whether or not that project is
+   * enumerated here — it resolves if the account is ingested later. The default compute and
+   * service-agent accounts name no project, so `fallbackProject` — the project the resource
+   * referencing the account lives in, which is where those accounts belong — stands in.
    */
-  protected serviceAccountRef(member: string): string {
-    return this.refs.serviceAccountRef(member);
+  protected serviceAccountRef(member: string, fallbackProject: string): string | undefined {
+    return this.refs.serviceAccountRef(member, fallbackProject);
   }
 
   /** Ref of the VPC network a Compute resource URL points at. */
-  protected vpcRef(networkUrl: string | null | undefined, fallbackProject: string): string {
+  protected vpcRef(networkUrl: string | null | undefined, fallbackProject: string): string | undefined {
     const network = parseResourceUrl(networkUrl);
     return this.resourceRef('vpc', {
       projectId: network.projectId ?? fallbackProject,
@@ -359,7 +432,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * Subnet names repeat across regions — an auto-mode network has a `default` subnet in every one —
    * so the entity name, and this ref, carry the region.
    */
-  protected subnetRef(subnetUrl: string | null | undefined, fallbackProject: string): string {
+  protected subnetRef(subnetUrl: string | null | undefined, fallbackProject: string): string | undefined {
     const subnet = parseResourceUrl(subnetUrl);
     return this.resourceRef('subnets', {
       projectId: subnet.projectId ?? fallbackProject,
@@ -385,31 +458,42 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
     annotateResources: boolean;
     index: GcpAssetIndexOptions;
   } {
-    const iam = this.gcpConfig.getOptionalConfig('iam');
-    return {
-      enabled: iam?.getOptionalBoolean('enabled') ?? true,
-      memberTypes: iam?.getOptionalStringArray('memberTypes') ?? ['serviceAccount'],
-      roles: iam?.getOptionalStringArray('roles'),
-      excludeRoles: iam?.getOptionalStringArray('excludeRoles') ?? [],
-      maxEdges: iam?.getOptionalNumber('maxEdgesPerMember') ?? 200,
-      annotateResources: iam?.getOptionalBoolean('annotateResources') ?? false,
-      index: {
-        cacheTtlMs: (iam?.getOptionalNumber('cacheTtlSeconds') ?? 600) * 1000,
-        maxBindings: iam?.getOptionalNumber('maxBindingsPerProject') ?? 20000,
-      },
-    };
+    return this.once('iamOptions', () => {
+      const iam = this.gcpConfig.getOptionalConfig('iam');
+      return {
+        enabled: iam?.getOptionalBoolean('enabled') ?? true,
+        memberTypes: iam?.getOptionalStringArray('memberTypes') ?? ['serviceAccount'],
+        roles: iam?.getOptionalStringArray('roles'),
+        excludeRoles: iam?.getOptionalStringArray('excludeRoles') ?? [],
+        maxEdges: iam?.getOptionalNumber('maxEdgesPerMember') ?? 200,
+        annotateResources: iam?.getOptionalBoolean('annotateResources') ?? false,
+        index: {
+          cacheTtlMs: (iam?.getOptionalNumber('cacheTtlSeconds') ?? 600) * 1000,
+          maxBindings: iam?.getOptionalNumber('maxBindingsPerProject') ?? 20000,
+        },
+      };
+    });
   }
 
   /**
    * The IAM index, shared with every other provider in this backend so one sweep serves all of
    * them. See {@link GcpAssetIndex}.
+   *
+   * The module hands the same instance to every provider it registers. A provider constructed on
+   * its own — in a test, or by an installation wiring providers by hand — falls back to one of its
+   * own, built once and kept, so it still caches across its own refreshes.
    */
   protected get assetIndex(): GcpAssetIndex {
-    return getAssetIndex(
-      google.cloudasset({ version: 'v1', auth: this.googleAuth }),
-      this.logger,
-      this.iamOptions.index,
-    );
+    if (!this.ownAssetIndex) {
+      this.ownAssetIndex =
+        this.injectedAssetIndex?.() ??
+        new GcpAssetIndex(
+          google.cloudasset({ version: 'v1', auth: this.googleAuth }),
+          this.logger,
+          this.iamOptions.index,
+        );
+    }
+    return this.ownAssetIndex;
   }
 
   /**
@@ -428,6 +512,11 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    *
    * Empty when IAM is switched off, so a caller can treat "no policies" and "no access" the same
    * way and needs no branch of its own.
+   *
+   * A sweep that stopped at `maxBindingsPerProject` throws instead of answering. Callers turn these
+   * policies into the relations of a `full` mutation, and a short read there is indistinguishable
+   * from "those grants were revoked" — the edges would be deleted from the catalog rather than
+   * merely missing from this refresh.
    */
   protected async iamPolicies(): Promise<Map<string, GcpProjectPolicies>> {
     const policies = new Map<string, GcpProjectPolicies>();
@@ -440,6 +529,13 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
         policies.set(project, await index.policiesOf(project));
       }),
     );
+    const truncated = [...policies.entries()].filter(([, project]) => project.truncated).map(([name]) => name);
+    if (truncated.length > 0) {
+      throw new Error(
+        `IAM policies for ${truncated.join(', ')} were truncated at iam.maxBindingsPerProject. ` +
+          `Ingesting them would delete every relation past the cap; raise it, or narrow iam.roles.`,
+      );
+    }
     return policies;
   }
 
@@ -450,18 +546,27 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * replaces `dependsOn` with the typed pairs in `src/relations.ts`.
    */
   protected get relationMode(): RelationMode {
-    const configured =
-      this.config.getOptionalString('relations') ?? this.gcpConfig.getOptionalString('iam.relations') ?? 'builtin';
-    if (configured !== 'builtin' && configured !== 'gcp') {
-      this.logger.warn(`Unknown relation mode '${configured}', using builtin`);
-      return 'builtin';
-    }
-    return configured;
+    return this.once('relationMode', () => {
+      return this.refs.relationModeFor(this.getProviderConfigKey());
+    });
   }
 
   /** Whether a role passes the configured `roles` allowlist and `excludeRoles` denylist. */
   protected iamRoleWanted(role: string): boolean {
     return this.refs.roleWanted(role);
+  }
+
+  /**
+   * Whether an IAM member is of a kind `iam.memberTypes` asked for.
+   *
+   * Defaults to service accounts alone, which are the only principals this module ingests entities
+   * for — so relations are unaffected by widening it. Where it does show is
+   * `iam.annotateResources`, whose annotation lists everyone holding a role on a resource: adding
+   * `user` and `group` there answers "who can touch this" for people as well as machines, and
+   * leaving them out keeps the annotation to the identities the graph can actually walk.
+   */
+  protected iamMemberWanted(member: string): boolean {
+    return memberMatchesTypes(parseMember(member), this.iamOptions.memberTypes);
   }
 
   /**
@@ -483,8 +588,11 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * is applied here — otherwise every relation pointing at a topic would dangle in an installation
    * that uses `stripPrefixes`.
    */
-  protected pubsubTopicRef(topicName: string | null | undefined, fallbackProject: string): string {
-    const prefixes = this.gcpConfig.getOptionalConfig('pubsub')?.getOptionalStringArray('stripPrefixes') ?? [];
+  protected pubsubTopicRef(topicName: string | null | undefined, fallbackProject: string): string | undefined {
+    const prefixes = this.once(
+      'pubsubStripPrefixes',
+      () => this.gcpConfig.getOptionalConfig('pubsub')?.getOptionalStringArray('stripPrefixes') ?? [],
+    );
     return this.resourceRef('pubsub', {
       projectId: segmentAfter(topicName, 'projects') ?? fallbackProject,
       type: 'pubsub-topic',
@@ -494,7 +602,11 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
   }
 
   /** Ref of the entity a Cloud Run service is ingested as. */
-  protected cloudRunServiceRef(service: string, region: string | undefined, projectId: string): string {
+  protected cloudRunServiceRef(
+    service: string,
+    region: string | undefined,
+    projectId: string,
+  ): string | undefined {
     return this.resourceRef('run', {
       projectId,
       type: 'cloud-run-service',
@@ -511,28 +623,33 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * not silently drop the console and documentation links the shared block turned on.
    */
   protected get linkOptions(): LinkOptions {
-    const read = (key: keyof LinkOptions): boolean =>
-      this.config.getOptionalBoolean(`links.${key}`) ??
-      this.gcpConfig.getOptionalBoolean(`links.${key}`) ??
-      DEFAULT_LINK_OPTIONS[key];
-    return { console: read('console'), docs: read('docs'), logs: read('logs') };
+    return this.once('linkOptions', () => {
+      const read = (key: keyof LinkOptions): boolean =>
+        this.config.getOptionalBoolean(`links.${key}`) ??
+        this.gcpConfig.getOptionalBoolean(`links.${key}`) ??
+        DEFAULT_LINK_OPTIONS[key];
+      return { console: read('console'), docs: read('docs'), logs: read('logs') };
+    });
   }
 
   /** Which facts become tags, resolved key by key like {@link linkOptions}. All off by default. */
   protected get tagOptions(): TagOptions {
-    const flag = (key: keyof TagOptions): boolean =>
-      this.config.getOptionalBoolean(`tags.${key}`) ?? this.gcpConfig.getOptionalBoolean(`tags.${key}`) ?? false;
-    return {
-      fromLabels: flag('fromLabels'),
-      labelKeys:
-        this.config.getOptionalStringArray('tags.labelKeys') ??
-        this.gcpConfig.getOptionalStringArray('tags.labelKeys') ??
-        NO_TAGS.labelKeys,
-      resourceType: flag('resourceType'),
-      region: flag('region'),
-      project: flag('project'),
-      attributes: flag('attributes'),
-    };
+    return this.once('tagOptions', () => {
+      const flag = (key: keyof TagOptions): boolean =>
+        this.config.getOptionalBoolean(`tags.${key}`) ?? this.gcpConfig.getOptionalBoolean(`tags.${key}`) ?? false;
+      return {
+        fromLabels: flag('fromLabels'),
+        labelKeys: (
+          this.config.getOptionalStringArray('tags.labelKeys') ??
+          this.gcpConfig.getOptionalStringArray('tags.labelKeys') ??
+          NO_TAGS.labelKeys
+        ).map(key => readConfiguredLabelKey(key, 'tags.labelKeys', this.logger)),
+        resourceType: flag('resourceType'),
+        region: flag('region'),
+        project: flag('project'),
+        attributes: flag('attributes'),
+      };
+    });
   }
 
   /**
@@ -540,7 +657,9 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * a catalog of entities with no description at all reads as broken.
    */
   protected get generateDescriptions(): boolean {
-    return this.config.getOptionalBoolean('descriptions') ?? this.gcpConfig.getOptionalBoolean('descriptions') ?? true;
+    return this.once('generateDescriptions', () => {
+      return this.config.getOptionalBoolean('descriptions') ?? this.gcpConfig.getOptionalBoolean('descriptions') ?? true;
+    });
   }
 
   /**
@@ -550,19 +669,21 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * the namespace template: one bad config line should not cost the entity its other links.
    */
   private extraLinks(context: GcpResourceContext): EntityLink[] {
-    const configured = this.config.getOptionalConfigArray('extraLinks') ?? [];
+    // The definitions are read once; only the URL rendering depends on the resource.
+    const configured = this.once('extraLinks', () =>
+      (this.config.getOptionalConfigArray('extraLinks') ?? []).map(link => ({
+        url: link.getString('url'),
+        ...(link.getOptionalString('title') ? { title: link.getString('title') } : {}),
+        ...(link.getOptionalString('icon') ? { icon: link.getString('icon') } : {}),
+        ...(link.getOptionalString('type') ? { type: link.getString('type') } : {}),
+      })),
+    );
     const links: EntityLink[] = [];
     for (const link of configured) {
-      const url = link.getString('url');
       try {
-        links.push({
-          url: renderTemplate(url, context),
-          ...(link.getOptionalString('title') ? { title: link.getString('title') } : {}),
-          ...(link.getOptionalString('icon') ? { icon: link.getString('icon') } : {}),
-          ...(link.getOptionalString('type') ? { type: link.getString('type') } : {}),
-        });
+        links.push({ ...link, url: renderTemplate(link.url, context) });
       } catch (error) {
-        this.logger.warn(`Ignoring extra link '${url}'`, error as Error);
+        this.logger.warn(`Ignoring extra link '${link.url}'`, error as Error);
       }
     }
     return links;
@@ -714,7 +835,10 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
       return;
     }
 
-    this.logger.info(`Ingesting GCP resources [${resources.map(r => r.entity.metadata.name).join(', ')}]`);
+    // The names go to debug: an estate-sized provider would otherwise write a multi-megabyte log
+    // line on every refresh.
+    this.logger.info(`Ingesting ${resources.length} ${this.getProviderName()} resources`);
+    this.logger.debug(`Ingesting [${resources.map(r => r.entity.metadata.name).join(', ')}]`);
 
     await this.connection.applyMutation({
       type: 'full',

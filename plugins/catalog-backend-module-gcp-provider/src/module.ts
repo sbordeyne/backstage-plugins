@@ -1,7 +1,11 @@
 import { Config } from '@backstage/config';
 import { coreServices, createBackendModule, LoggerService, SchedulerService } from '@backstage/backend-plugin-api';
 import { catalogProcessingExtensionPoint, EntityProvider } from '@backstage/plugin-catalog-node';
+import { google } from 'googleapis';
 import { GcpRelationProcessor } from './processors/GcpRelationProcessor';
+import { GcpAssetIndex } from './iam';
+import type { GcpAssetIndexFactory } from './providers/GcpEntityProviderBase';
+import { createGoogleAuth } from './googleAuth';
 import {
   GcpAddressEntityProvider,
   GcpAlloyDbEntityProvider,
@@ -67,6 +71,7 @@ type GcpEntityProviderClass = new (
   logger: LoggerService,
   scheduler: SchedulerService,
   config: Config,
+  assetIndex: GcpAssetIndexFactory,
 ) => EntityProvider;
 
 /** Config key under `catalog.providers.gcp` that turns each provider on. */
@@ -174,11 +179,26 @@ export const catalogModuleGcpProvider = createBackendModule({
           return;
         }
 
+        // One index for the whole backend: providers refresh on independent schedules, and sharing
+        // it is what keeps thirty providers waking up within a TTL of each other to one Cloud Asset
+        // sweep per project rather than thirty.
+        //
+        // Built on first use, so an installation with `iam.enabled: false` never constructs a
+        // Cloud Asset client or resolves credentials for it.
+        const iam = gcpConfig.getOptionalConfig('iam');
+        let index: GcpAssetIndex | undefined;
+        const assetIndex = () =>
+          (index ??= new GcpAssetIndex(google.cloudasset({ version: 'v1', auth: createGoogleAuth(logger) }), logger, {
+            cacheTtlMs: (iam?.getOptionalNumber('cacheTtlSeconds') ?? 600) * 1000,
+            maxBindings: iam?.getOptionalNumber('maxBindingsPerProject') ?? 20000,
+          }));
+
         // Custom relation types have no spec field to travel in, so the ones this module emits —
         // `accessorOf`, `publishedToBy`, `attachedTo` and the rest — come from a processor. It is
         // registered unconditionally and does nothing at all unless `iam.relations: gcp`.
-        catalog.addProcessor(new GcpRelationProcessor(config, logger));
+        catalog.addProcessor(new GcpRelationProcessor(config, logger, assetIndex));
 
+        const registered: string[] = [];
         for (const [configKey, GcpEntityProvider] of Object.entries(PROVIDERS)) {
           const providerConfig = gcpConfig.getOptionalConfig(configKey);
           if (!providerConfig) {
@@ -191,7 +211,20 @@ export const catalogModuleGcpProvider = createBackendModule({
             logger.info(`GCP ${configKey} provider is disabled, skipping`);
             continue;
           }
-          catalog.addEntityProvider(new GcpEntityProvider(logger, scheduler, config));
+          catalog.addEntityProvider(new GcpEntityProvider(logger, scheduler, config, assetIndex));
+          registered.push(configKey);
+        }
+
+        if (registered.length === 0) {
+          // A provider block has to be a mapping — `storage: {}` at the very least. Backstage's
+          // config loader drops a key whose value is null before this module can see it, so a bare
+          // `storage:` is indistinguishable from no `storage` key at all and would otherwise be
+          // silently ignored. Saying so here is the only place it can be caught.
+          logger.warn(
+            'A catalog.providers.gcp block is configured but no provider was registered. A provider ' +
+              "is enabled by a mapping under its config key — write 'storage: {}', not a bare " +
+              "'storage:', which the config loader discards.",
+          );
         }
       },
     });

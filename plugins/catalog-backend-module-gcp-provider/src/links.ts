@@ -1,5 +1,6 @@
 import { EntityLink } from '@backstage/catalog-model';
 import { GCP_CONSOLE_URL } from './constants';
+import { RESOURCE_TYPES } from './resourceTypes';
 
 /**
  * Which families of links are written onto an entity.
@@ -21,55 +22,16 @@ export const DEFAULT_LINK_OPTIONS: LinkOptions = {
 };
 
 /**
- * Product documentation per `spec.type`.
+ * Product documentation per `spec.type`, derived from {@link RESOURCE_TYPES}.
  *
  * Keyed by type rather than by provider so two resource types ingested by one provider — a Spanner
- * instance and a Spanner database, say — can point at different pages.
+ * instance and a Spanner database, say — point at different pages. `docsUrl` is required on a
+ * resource type, so a type cannot be added without one and end up as the only entity in the catalog
+ * with no documentation link.
  */
-export const DOCS_URLS: Record<string, string> = {
-  // Ingested since the first version of the module.
-  'bigquery-dataset': 'https://cloud.google.com/bigquery/docs/datasets-intro',
-  bucket: 'https://cloud.google.com/storage/docs/buckets',
-  'cloudsql-instance': 'https://cloud.google.com/sql/docs/mysql/instance-settings',
-  'pubsub-topic': 'https://cloud.google.com/pubsub/docs/overview',
-  'pubsub-subscription': 'https://cloud.google.com/pubsub/docs/subscriber',
-  secret: 'https://cloud.google.com/secret-manager/docs',
-  'google-service-account': 'https://cloud.google.com/iam/docs/service-account-overview',
-  'kubernetes-cluster': 'https://cloud.google.com/kubernetes-engine/docs',
-
-  // Networking and compute.
-  'vpc-network': 'https://cloud.google.com/vpc/docs/vpc',
-  subnetwork: 'https://cloud.google.com/vpc/docs/subnets',
-  'firewall-rule': 'https://cloud.google.com/firewall/docs/firewalls',
-  'cloud-router': 'https://cloud.google.com/network-connectivity/docs/router/concepts/overview',
-  'cloud-nat': 'https://cloud.google.com/nat/docs/overview',
-  'dns-zone': 'https://cloud.google.com/dns/docs/zones',
-  'compute-instance': 'https://cloud.google.com/compute/docs/instances',
-  'instance-group': 'https://cloud.google.com/compute/docs/instance-groups',
-  'compute-image': 'https://cloud.google.com/compute/docs/images',
-
-  // Databases.
-  'spanner-instance': 'https://cloud.google.com/spanner/docs/instances',
-  'spanner-database': 'https://cloud.google.com/spanner/docs/schema-and-data-model',
-  'redis-instance': 'https://cloud.google.com/memorystore/docs/redis',
-  'alloydb-cluster': 'https://cloud.google.com/alloydb/docs/cluster-overview',
-  'alloydb-instance': 'https://cloud.google.com/alloydb/docs/instance-overview',
-  'bigtable-instance': 'https://cloud.google.com/bigtable/docs/instances-clusters-nodes',
-  'firestore-database': 'https://cloud.google.com/firestore/docs',
-
-  // Messaging and eventing.
-  'kafka-cluster': 'https://cloud.google.com/managed-service-for-apache-kafka/docs/create-cluster',
-  'kafka-topic': 'https://cloud.google.com/managed-service-for-apache-kafka/docs/create-topic',
-  'cloud-tasks-queue': 'https://cloud.google.com/tasks/docs/dual-overview',
-  'eventarc-trigger': 'https://cloud.google.com/eventarc/docs/overview',
-  'scheduler-job': 'https://cloud.google.com/scheduler/docs',
-
-  // Serverless and artifacts.
-  'cloud-run-service': 'https://cloud.google.com/run/docs/deploying',
-  'cloud-run-job': 'https://cloud.google.com/run/docs/create-jobs',
-  'cloud-function': 'https://cloud.google.com/functions/docs/concepts/overview',
-  'artifact-repository': 'https://cloud.google.com/artifact-registry/docs/repositories',
-};
+export const DOCS_URLS: Record<string, string> = Object.fromEntries(
+  RESOURCE_TYPES.map(resource => [resource.type, resource.docsUrl]),
+);
 
 /**
  * A console URL for a path such as `sql/instances/my-db/overview`.

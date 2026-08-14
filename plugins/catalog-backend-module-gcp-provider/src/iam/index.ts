@@ -1,4 +1,4 @@
-export { GcpAssetIndex, getAssetIndex, resetAssetIndex } from './GcpAssetIndex';
+export { GcpAssetIndex } from './GcpAssetIndex';
 export type {
   GcpAssetIndexOptions,
   GcpIamGrant,

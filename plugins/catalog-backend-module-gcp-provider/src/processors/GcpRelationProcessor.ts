@@ -3,7 +3,8 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 import { Entity, parseEntityRef, stringifyEntityRef } from '@backstage/catalog-model';
 import { CatalogProcessor, CatalogProcessorEmit, processingResult } from '@backstage/plugin-catalog-node';
 import { google } from 'googleapis';
-import { GcpAssetIndex, getAssetIndex } from '../iam';
+import { GcpAssetIndex } from '../iam';
+import type { GcpAssetIndexFactory } from '../providers/GcpEntityProviderBase';
 import { createGoogleAuth } from '../googleAuth';
 import { GcpRefBuilder } from './GcpRefBuilder';
 import {
@@ -15,6 +16,7 @@ import {
   STRUCTURAL_RELATIONS,
 } from '../relations';
 import { ANNOTATION_GCP_PROJECT_ID, ANNOTATION_GCP_SERVICE_ACCOUNT } from '../constants';
+import { CONFIG_KEY_BY_TYPE } from '../resourceTypes';
 
 /**
  * Emits the relation types the catalog has no spec field for.
@@ -36,35 +38,34 @@ import { ANNOTATION_GCP_PROJECT_ID, ANNOTATION_GCP_SERVICE_ACCOUNT } from '../co
  */
 export class GcpRelationProcessor implements CatalogProcessor {
   private readonly refs: GcpRefBuilder;
+  /** Logger, also handed to the ref builder so its warnings carry the same context. */
+  /**
+   * Everything below is resolved once in the constructor rather than per call.
+   *
+   * `postProcessEntity` runs for every entity in the catalog, not only this module's, so anything
+   * a getter did there was done tens of thousands of times per processing pass — including, in the
+   * case of the asset index, building a fresh `GoogleAuth` and Cloud Asset client.
+   */
+  private readonly gcpConfig: Config;
+  private readonly assetIndex: GcpAssetIndexFactory;
 
-  constructor(
-    private readonly config: Config,
-    private readonly logger: LoggerService,
-    private readonly assetIndex?: GcpAssetIndex,
-  ) {
-    this.refs = new GcpRefBuilder(this.gcpConfig);
+  constructor(config: Config, private readonly logger: LoggerService, assetIndex?: GcpAssetIndexFactory) {
+    this.gcpConfig = config.getConfig('catalog.providers.gcp');
+    this.refs = new GcpRefBuilder(this.gcpConfig, logger);
+    // Resolved on first use, not here: the processor is registered unconditionally, and in
+    // `builtin` mode — the default — it never reads a policy at all.
+    let own: GcpAssetIndex | undefined;
+    this.assetIndex =
+      assetIndex ??
+      (() =>
+        (own ??= new GcpAssetIndex(google.cloudasset({ version: 'v1', auth: createGoogleAuth(logger) }), logger, {
+          cacheTtlMs: (this.gcpConfig.getOptionalNumber('iam.cacheTtlSeconds') ?? 600) * 1000,
+          maxBindings: this.gcpConfig.getOptionalNumber('iam.maxBindingsPerProject') ?? 20000,
+        })));
   }
 
   getProcessorName(): string {
     return 'GcpRelationProcessor';
-  }
-
-  private get gcpConfig(): Config {
-    return this.config.getConfig('catalog.providers.gcp');
-  }
-
-  private get mode(): RelationMode {
-    return this.gcpConfig.getOptionalString('iam.relations') === 'gcp' ? 'gcp' : 'builtin';
-  }
-
-  private get index(): GcpAssetIndex {
-    return (
-      this.assetIndex ??
-      getAssetIndex(google.cloudasset({ version: 'v1', auth: createGoogleAuth(this.logger) }), this.logger, {
-        cacheTtlMs: (this.gcpConfig.getOptionalNumber('iam.cacheTtlSeconds') ?? 600) * 1000,
-        maxBindings: this.gcpConfig.getOptionalNumber('iam.maxBindingsPerProject') ?? 20000,
-      })
-    );
   }
 
   /** Emits both halves of one relation, since a custom type has no automatic reverse. */
@@ -80,15 +81,28 @@ export class GcpRelationProcessor implements CatalogProcessor {
     emit(processingResult.relation({ source: target, type: pair.reverse, target: source }));
   }
 
-  async postProcessEntity(entity: Entity, _location: unknown, emit: CatalogProcessorEmit): Promise<Entity> {
-    if (this.mode !== 'gcp') {
-      return entity;
-    }
+  /**
+   * The vocabulary the provider that ingested this entity emits.
+   *
+   * Read from that provider's own config block rather than from the shared key alone, so a provider
+   * set to `relations: gcp` under a `builtin` default has its structural edges converted here
+   * instead of silently discarded. An entity this module did not ingest matches no provider and
+   * falls back to the shared setting, which leaves both emitters below no-ops for it.
+   */
+  private modeFor(entity: Entity): RelationMode {
+    const type = typeof entity.spec?.type === 'string' ? entity.spec.type : undefined;
+    return this.refs.relationModeFor(type ? CONFIG_KEY_BY_TYPE.get(type) : undefined);
+  }
 
-    const selfRef = stringifyEntityRef(entity);
-    this.emitStructural(entity, selfRef, emit);
-    await this.emitIamRelations(entity, selfRef, emit);
-    return entity;
+  async postProcessEntity(entity: Entity, _location: unknown, emit: CatalogProcessorEmit): Promise<Entity> {
+    if (this.modeFor(entity) === 'gcp') {
+      const selfRef = stringifyEntityRef(entity);
+      this.emitStructural(entity, selfRef, emit);
+      await this.emitIamRelations(entity, selfRef, emit);
+    }
+    // Stripped whichever mode applies: the field is transport for this processor, and an entity
+    // still carrying it has either been read here or was never going to be.
+    return stripGcpRelations(entity);
   }
 
   /** Containment and attachment, as the provider recorded them on the entity. */
@@ -127,7 +141,7 @@ export class GcpRelationProcessor implements CatalogProcessor {
     const byTarget = new Map<string, string>();
 
     for (const project of projects) {
-      const policies = await this.index.policiesOf(project);
+      const policies = await this.assetIndex().policiesOf(project);
       for (const grant of policies.grantsByMember.get(member) ?? []) {
         if (!this.refs.roleWanted(grant.role)) {
           continue;
@@ -154,6 +168,21 @@ export class GcpRelationProcessor implements CatalogProcessor {
       }
     }
   }
+}
+
+/**
+ * The entity without the `gcpRelations` field the provider used to carry structural edges here.
+ *
+ * It is transport, not data: once the relations are emitted it has done its job, and leaving it on
+ * the entity shows a non-standard spec field to anyone reading the raw YAML.
+ */
+function stripGcpRelations(entity: Entity): Entity {
+  if (!entity.spec || !('gcpRelations' in entity.spec)) {
+    return entity;
+  }
+  const { gcpRelations, ...spec } = entity.spec as { gcpRelations?: unknown };
+  void gcpRelations;
+  return { ...entity, spec };
 }
 
 /** Roles ordered by how much they permit, so one verb can be chosen per resource. */

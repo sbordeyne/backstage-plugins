@@ -8,14 +8,39 @@ import { LoggerService } from '@backstage/backend-plugin-api';
  */
 export type GcpGoogleAuth = InstanceType<typeof google.auth.GoogleAuth>;
 
-/** The service account key `GOOGLE_APPLICATION_CREDENTIALS` points at, when it points at one. */
+/** Resolved once: every provider in a backend reads the same file from the same environment. */
+let cachedCredentials: { credentials?: JWTInput } | undefined;
+
+/**
+ * The service account key `GOOGLE_APPLICATION_CREDENTIALS` points at, when it points at a readable
+ * one.
+ *
+ * A missing or unparseable file is logged and ignored rather than thrown: `GoogleAuth` still has
+ * `gcloud` credentials, Workload Identity and the metadata server to fall back on, and a provider
+ * is constructed during backend startup — throwing here takes the whole backend down over an
+ * environment variable that may not even have been meant for this plugin.
+ */
 function credentialsFromEnv(logger: LoggerService): JWTInput | undefined {
+  if (cachedCredentials) {
+    return cachedCredentials.credentials;
+  }
   const path = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   if (!path) {
+    cachedCredentials = {};
     return undefined;
   }
-  logger.info(`Using GOOGLE_APPLICATION_CREDENTIALS: ${path}`);
-  return JSON.parse(fs.readFileSync(path, 'utf8'));
+  try {
+    logger.info(`Using GOOGLE_APPLICATION_CREDENTIALS: ${path}`);
+    cachedCredentials = { credentials: JSON.parse(fs.readFileSync(path, 'utf8')) };
+  } catch (error) {
+    logger.warn(
+      `Ignoring GOOGLE_APPLICATION_CREDENTIALS=${path}, which is not a readable JSON key file; ` +
+        `falling back to application default credentials`,
+      error as Error,
+    );
+    cachedCredentials = {};
+  }
+  return cachedCredentials.credentials;
 }
 
 /**

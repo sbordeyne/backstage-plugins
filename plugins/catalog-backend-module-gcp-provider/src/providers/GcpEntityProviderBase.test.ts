@@ -62,8 +62,10 @@ const bucket: GcpResource = {
 };
 
 describe('namespaces', () => {
-  it('uses the default namespace when nothing is configured', () => {
-    expect(providerWith({}).metadata(bucket).namespace).toBe('default');
+  it('namespaces by project when nothing is configured', () => {
+    // Entity names are only unique within a project, so the default has to carry the project or
+    // two projects' `default` networks become one entity.
+    expect(providerWith({}).metadata(bucket).namespace).toBe('gcp-my-project');
   });
 
   it('renders the shared template', () => {
@@ -82,7 +84,9 @@ describe('namespaces', () => {
     expect(providerWith({ defaultNamespace: 'GCP_{{projectId}}' }).metadata(bucket).namespace).toBe('gcp-my-project');
   });
 
-  it('falls back to the default namespace when the template names an unknown variable', () => {
+  it('falls back to a plain namespace when the template names an unknown variable', () => {
+    // The fallback is not itself a template: it answers "this configuration is broken", so it
+    // cannot be something that could fail to render in turn.
     expect(providerWith({ defaultNamespace: 'gcp-{{project}}' }).metadata(bucket).namespace).toBe('default');
   });
 

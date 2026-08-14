@@ -219,7 +219,8 @@ export class GcpAnalyticsHubEntityProvider extends GcpRestEntityProvider<analyti
       })
       .filter(entity => entity !== undefined);
 
-    return [exchangeEntity, ...listingEntities];
+    // A listing hangs off its exchange, so an exchange that could not be named takes them with it.
+    return exchangeEntity ? [exchangeEntity, ...listingEntities] : [];
   }
 
   public async getResources(): Promise<DeferredEntity[]> {

@@ -27,7 +27,7 @@ export class GcpSloEntityProvider extends GcpRestEntityProvider<monitoring_v3.Mo
     slo: monitoring_v3.Schema$ServiceLevelObjective,
     serviceId: string,
     project: string,
-    serviceRef: string,
+    serviceRef: string | undefined,
   ): DeferredEntity | undefined {
     const sloId = lastSegment(slo.name);
     if (!sloId) {
@@ -94,6 +94,9 @@ export class GcpSloEntityProvider extends GcpRestEntityProvider<monitoring_v3.Mo
       },
     );
 
+    if (!serviceEntity) {
+      return [];
+    }
     return [
       serviceEntity,
       ...slos

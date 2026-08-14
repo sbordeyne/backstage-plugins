@@ -1,18 +1,23 @@
 import {
   apiSelfLink,
   formatResourceName,
+  formatResourceNameOrUndefined,
   lastSegment,
   ownerLabelKeys,
+  pubsubSubscriptionName,
   segmentAfter,
   toEntityTags,
   parseOwnerRef,
   parseSystemRef,
+  readConfiguredLabelKey,
   readLabel,
   regionAnnotation,
   renderTemplate,
   selfLinkAnnotation,
+  serviceAccountProject,
   toEntityLabels,
 } from './utils';
+import { mockServices } from '@backstage/backend-test-utils';
 import { DEFAULT_OWNER_LABEL } from './constants';
 
 describe('regionAnnotation', () => {
@@ -41,30 +46,88 @@ describe('formatResourceName', () => {
     expect(formatResourceName('(default)')).toBe('default');
     expect(formatResourceName('_leading-and-trailing_')).toBe('leading-and-trailing');
   });
+
+  it('keeps two long names apart instead of truncating them onto one entity', () => {
+    // Generated names carry their distinguishing part at the end, so plain truncation would give
+    // these one entity between them and each refresh would overwrite the other's.
+    const first = formatResourceName(`${'a'.repeat(60)}-suffix-one`);
+    const second = formatResourceName(`${'a'.repeat(60)}-suffix-two`);
+    expect(first).not.toEqual(second);
+    expect(first).toHaveLength(63);
+    expect(second).toHaveLength(63);
+  });
+
+  it('gives the same name the same digest every refresh', () => {
+    const name = `${'a'.repeat(60)}-suffix-one`;
+    expect(formatResourceName(name)).toBe(formatResourceName(name));
+  });
+
+  it('throws when nothing survives normalization, so the caller can skip that one resource', () => {
+    // `resource:namespace/` is rejected by the catalog, and a rejected entity fails the whole
+    // mutation rather than only itself.
+    expect(() => formatResourceName('___')).toThrow(/no characters an entity name can be built from/);
+    expect(() => formatResourceName('')).toThrow();
+  });
+});
+
+describe('formatResourceNameOrUndefined', () => {
+  it('answers undefined instead of throwing, for refs that are worth dropping', () => {
+    expect(formatResourceNameOrUndefined('___')).toBeUndefined();
+    expect(formatResourceNameOrUndefined('prod')).toBe('prod');
+  });
 });
 
 describe('ownerLabelKeys', () => {
-  it('also matches the spelling GCP would accept', () => {
-    expect(ownerLabelKeys(DEFAULT_OWNER_LABEL)).toEqual(['backstage.io/owner-ref', 'backstage_io_owner-ref']);
+  it('leaves the default alone, since it is already a key GCP accepts', () => {
+    expect(ownerLabelKeys(DEFAULT_OWNER_LABEL)).toEqual(['backstage_io_owner-ref']);
   });
 
-  it('leaves an already legal key alone', () => {
+  it('leaves any other legal key alone', () => {
     expect(ownerLabelKeys('backstage-owner-ref')).toEqual(['backstage-owner-ref']);
+  });
+
+  it('also matches the legal spelling of a key GCP would reject', () => {
+    // Configured by hand as a Backstage-style key, which no resource can actually carry.
+    expect(ownerLabelKeys('backstage.io/owner-ref')).toEqual(['backstage.io/owner-ref', 'backstage_io_owner-ref']);
+  });
+});
+
+describe('readConfiguredLabelKey', () => {
+  const logger = mockServices.logger.mock();
+
+  it('passes a key GCP accepts straight through', () => {
+    expect(readConfiguredLabelKey('backstage_io_owner-ref', 'ownerLabel', logger)).toBe('backstage_io_owner-ref');
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('reports a key GCP would reject and reads its legal spelling', () => {
+    // Silently folding it hides a typo behind "no resource has an owner", which reads as the
+    // module being broken rather than the configuration.
+    expect(readConfiguredLabelKey('backstage.io/owner-ref', 'ownerLabel', logger)).toBe('backstage_io_owner-ref');
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('backstage_io_owner-ref'));
+  });
+
+  it('throws on a key that cannot be folded into a legal one', () => {
+    // A GCP label key has to open with a lowercase letter, so there is no reading of these that
+    // would ever match a label.
+    expect(() => readConfiguredLabelKey('9lives', 'ownerLabel', logger)).toThrow(/not usable as ownerLabel/);
+    expect(() => readConfiguredLabelKey('___', 'systemLabel', logger)).toThrow(/not usable as systemLabel/);
+    expect(() => readConfiguredLabelKey('', 'ownerLabel', logger)).toThrow();
   });
 });
 
 describe('readLabel', () => {
-  it('reads the configured key', () => {
-    expect(readLabel({ 'backstage.io/owner-ref': 'platform-team' }, DEFAULT_OWNER_LABEL)).toBe('platform-team');
+  it('reads the default key, as a real resource carries it', () => {
+    expect(readLabel({ 'backstage_io_owner-ref': 'platform-team' }, DEFAULT_OWNER_LABEL)).toBe('platform-team');
   });
 
-  it('reads the GCP legal spelling of the configured key', () => {
-    expect(readLabel({ 'backstage_io_owner-ref': 'platform-team' }, DEFAULT_OWNER_LABEL)).toBe('platform-team');
+  it('reads the GCP legal spelling of a configured key GCP would reject', () => {
+    expect(readLabel({ 'backstage_io_owner-ref': 'platform-team' }, 'backstage.io/owner-ref')).toBe('platform-team');
   });
 
   it('prefers the configured key over its folded form', () => {
     const labels = { 'backstage.io/owner-ref': 'exact', 'backstage_io_owner-ref': 'folded' };
-    expect(readLabel(labels, DEFAULT_OWNER_LABEL)).toBe('exact');
+    expect(readLabel(labels, 'backstage.io/owner-ref')).toBe('exact');
   });
 
   it('ignores missing, empty and null values', () => {
@@ -77,7 +140,7 @@ describe('readLabel', () => {
 
   it('falls back to the folded key when the exact one is empty', () => {
     const labels = { 'backstage.io/owner-ref': '', 'backstage_io_owner-ref': 'platform-team' };
-    expect(readLabel(labels, DEFAULT_OWNER_LABEL)).toBe('platform-team');
+    expect(readLabel(labels, 'backstage.io/owner-ref')).toBe('platform-team');
   });
 });
 
@@ -217,6 +280,37 @@ describe('parseSystemRef', () => {
 
   it('throws on a value that is not a ref, leaving the caller to fall back', () => {
     expect(() => parseSystemRef('system:')).toThrow();
+  });
+});
+
+describe('pubsubSubscriptionName', () => {
+  it('keeps a subscription off the entity ref of the topic it is named after', () => {
+    expect(pubsubSubscriptionName('orders')).not.toBe(formatResourceName('orders'));
+  });
+});
+
+describe('serviceAccountProject', () => {
+  it('reads the project off a user-managed account', () => {
+    expect(serviceAccountProject('auth-sa@my-project.iam.gserviceaccount.com')).toBe('my-project');
+  });
+
+  it('reads the project off an App Engine account, whose local part names it', () => {
+    expect(serviceAccountProject('my-project@appspot.gserviceaccount.com')).toBe('my-project');
+  });
+
+  it('names no project for the accounts that identify theirs by number', () => {
+    // These are exactly the identities workloads run as by default, and guessing `developer` or
+    // `gcp-sa-pubsub` as their project puts every ref built from them in a namespace with nothing
+    // in it.
+    expect(serviceAccountProject('123456-compute@developer.gserviceaccount.com')).toBeUndefined();
+    expect(serviceAccountProject('service-123456@gcp-sa-pubsub.iam.gserviceaccount.com')).toBeUndefined();
+    expect(serviceAccountProject('123456@cloudbuild.gserviceaccount.com')).toBeUndefined();
+    expect(serviceAccountProject('123456@cloudservices.gserviceaccount.com')).toBeUndefined();
+    expect(serviceAccountProject('service-123456@compute-system.iam.gserviceaccount.com')).toBeUndefined();
+  });
+
+  it('names no project for something that is not an email', () => {
+    expect(serviceAccountProject('allUsers')).toBeUndefined();
   });
 });
 

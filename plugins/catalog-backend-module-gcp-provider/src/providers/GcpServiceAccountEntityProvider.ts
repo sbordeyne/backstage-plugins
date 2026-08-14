@@ -36,6 +36,11 @@ export class GcpServiceAccountEntityProvider extends GcpRestEntityProvider<iam_v
   /** Every grant this account holds, across every configured project's policies. */
   private grantsOf(email: string, policies: Map<string, GcpProjectPolicies>): GcpIamGrant[] {
     const member = `serviceAccount:${email}`;
+    // `memberTypes` decides which kinds of principal produce edges at all. An account is only ever
+    // this one kind, so narrowing the list past it is what switches these relations off.
+    if (!this.iamMemberWanted(member)) {
+      return [];
+    }
     const grants: GcpIamGrant[] = [];
     for (const projectPolicies of policies.values()) {
       grants.push(...(projectPolicies.grantsByMember.get(member) ?? []));
@@ -74,7 +79,13 @@ export class GcpServiceAccountEntityProvider extends GcpRestEntityProvider<iam_v
       // The grant's own project, not the account's: the resource a role is held on frequently lives
       // in another project, and its entity is named after that one.
       const ref = this.refForAsset(grant.assetName, grant.assetType, grant.project ?? projectId);
-      if (!ref || refs.size >= this.iamOptions.maxEdges) {
+      if (!ref) {
+        continue;
+      }
+      // The cap bounds how many *resources* are related, so a role on a resource already related
+      // still counts: dropping it would silently weaken the verb chosen for that resource, which
+      // is decided from the full set of roles held on it.
+      if (!refs.has(ref) && refs.size >= this.iamOptions.maxEdges) {
         continue;
       }
       refs.set(ref, [...(refs.get(ref) ?? []), grant.role]);

@@ -82,7 +82,7 @@ export class GcpEventarcEntityProvider extends GcpRestEntityProvider<eventarc_v1
       {
         dependsOn: [
           ...(topic ? [this.pubsubTopicRef(topic, project)] : []),
-          ...(trigger.serviceAccount ? [this.serviceAccountRef(trigger.serviceAccount)] : []),
+          ...(trigger.serviceAccount ? [this.serviceAccountRef(trigger.serviceAccount, project)] : []),
         ],
         // The trigger feeds its destination, rather than the other way round.
         dependencyOf: destination.ref ? [destination.ref] : [],

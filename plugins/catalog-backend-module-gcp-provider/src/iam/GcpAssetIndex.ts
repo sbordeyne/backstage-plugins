@@ -244,28 +244,11 @@ export class GcpAssetIndex {
   }
 }
 
-let sharedIndex: GcpAssetIndex | undefined;
-
 /**
- * The index shared by every provider in this backend.
+ * The index is constructed once by the module and handed to every provider and to the relation
+ * processor, so one sweep per project serves all of them.
  *
- * Providers construct themselves independently and all authenticate the same way, so the first one
- * to ask supplies the client; the rest reuse it and, with it, its cache. Options come from the
- * first caller as well — they are read from `catalog.providers.gcp.iam`, which is shared
- * configuration, so per-provider divergence is not a case worth complicating this for.
+ * It used to be a module-level singleton reached through a `getAssetIndex()` accessor, which latched
+ * the options and logger of whichever provider happened to be built first and kept a cache alive
+ * between tests. Passing it in makes the sharing explicit and leaves no mutable module state.
  */
-export function getAssetIndex(
-  client: cloudasset_v1.Cloudasset,
-  logger: LoggerService,
-  options: GcpAssetIndexOptions,
-): GcpAssetIndex {
-  if (!sharedIndex) {
-    sharedIndex = new GcpAssetIndex(client, logger, options);
-  }
-  return sharedIndex;
-}
-
-/** Drops the shared index, so tests start from a clean cache. */
-export function resetAssetIndex(): void {
-  sharedIndex = undefined;
-}

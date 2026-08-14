@@ -66,7 +66,9 @@ function configOf(gcp: JsonObject): ConfigReader {
 function indexOf() {
   const searchAllIamPolicies = jest.fn().mockResolvedValue({ data: POLICIES });
   const client = { v1: { searchAllIamPolicies } } as unknown as cloudasset_v1.Cloudasset;
-  return new GcpAssetIndex(client, mockServices.logger.mock(), { cacheTtlMs: 60_000, maxBindings: 1000 });
+  const index = new GcpAssetIndex(client, mockServices.logger.mock(), { cacheTtlMs: 60_000, maxBindings: 1000 });
+  // The processor takes a factory, so it builds nothing in the `builtin` mode it defaults to.
+  return () => index;
 }
 
 /** Runs the processor and collects the relations it emitted. */
@@ -106,12 +108,12 @@ describe('GcpRelationProcessor', () => {
     expect(relations).toContainEqual({
       source: 'resource:default/auth-sa',
       type: 'accessorOf',
-      target: 'resource:default/auth-jwks',
+      target: 'resource:gcp-prod/auth-jwks',
     });
     expect(relations).toContainEqual({
       source: 'resource:default/auth-sa',
       type: 'publisherTo',
-      target: 'resource:default/auth-events',
+      target: 'resource:gcp-prod/auth-events',
     });
   });
 
@@ -119,12 +121,12 @@ describe('GcpRelationProcessor', () => {
     const relations = await relationsOf(AUTH_SA, GCP_MODE);
 
     expect(relations).toContainEqual({
-      source: 'resource:default/auth-jwks',
+      source: 'resource:gcp-prod/auth-jwks',
       type: 'accessedBy',
       target: 'resource:default/auth-sa',
     });
     expect(relations).toContainEqual({
-      source: 'resource:default/auth-events',
+      source: 'resource:gcp-prod/auth-events',
       type: 'publishedToBy',
       target: 'resource:default/auth-sa',
     });
@@ -132,10 +134,10 @@ describe('GcpRelationProcessor', () => {
 
   it('keeps the strongest verb when one account holds several roles on a resource', async () => {
     const relations = await relationsOf(AUTH_SA, GCP_MODE);
-    const bucket = relations.filter(relation => relation.target === 'resource:default/auth-exports');
+    const bucket = relations.filter(relation => relation.target === 'resource:gcp-prod/auth-exports');
 
     expect(bucket).toEqual([
-      { source: 'resource:default/auth-sa', type: 'adminOf', target: 'resource:default/auth-exports' },
+      { source: 'resource:default/auth-sa', type: 'adminOf', target: 'resource:gcp-prod/auth-exports' },
     ]);
   });
 
@@ -163,6 +165,58 @@ describe('GcpRelationProcessor', () => {
       { source: 'resource:default/orders-ledger', type: 'partOf', target: 'resource:default/orders' },
       { source: 'resource:default/orders', type: 'hasPart', target: 'resource:default/orders-ledger' },
     ]);
+  });
+
+  it('honours a per-provider relations override under a builtin default', async () => {
+    const database: Entity = {
+      apiVersion: 'backstage.io/v1alpha1',
+      kind: 'Resource',
+      metadata: { name: 'orders-ledger', namespace: 'default' },
+      spec: {
+        type: 'spanner-database',
+        owner: 'group:default/platform',
+        gcpRelations: [{ type: 'partOf', targetRef: 'resource:default/orders' }],
+      },
+    };
+
+    // The provider is set to `gcp` while the shared default is left at `builtin`. The provider
+    // writes the edge as `gcpRelations`, so the processor has to read the same key it did —
+    // otherwise the edge is converted by nobody and lost.
+    const perProvider = { spanner: { projects: ['prod'], schedule, relations: 'gcp' } };
+
+    await expect(relationsOf(database, perProvider)).resolves.toEqual([
+      { source: 'resource:default/orders-ledger', type: 'partOf', target: 'resource:default/orders' },
+      { source: 'resource:default/orders', type: 'hasPart', target: 'resource:default/orders-ledger' },
+    ]);
+  });
+
+  it('leaves an entity alone when its own provider is on the builtin vocabulary', async () => {
+    // The reverse of the above: a shared `gcp` default with one provider held back to `builtin`,
+    // which emits plain `dependsOn` itself and must not have edges emitted here as well.
+    const account = { ...AUTH_SA };
+    const heldBack = { ...GCP_MODE, 'service-account': { projects: ['prod'], schedule, relations: 'builtin' } };
+
+    await expect(relationsOf(account, heldBack)).resolves.toEqual([]);
+  });
+
+  it('takes the transport field back off the entity once it has been read', async () => {
+    const database: Entity = {
+      apiVersion: 'backstage.io/v1alpha1',
+      kind: 'Resource',
+      metadata: { name: 'orders-ledger', namespace: 'default' },
+      spec: {
+        type: 'spanner-database',
+        owner: 'group:default/platform',
+        gcpRelations: [{ type: 'partOf', targetRef: 'resource:default/orders' }],
+      },
+    };
+
+    const processor = new GcpRelationProcessor(configOf(GCP_MODE), mockServices.logger.mock(), indexOf());
+    const processed = await processor.postProcessEntity(database, undefined, () => {});
+
+    // `gcpRelations` carries the edge to this processor and nowhere else; leaving it on the entity
+    // shows a non-standard spec field to anyone reading the raw YAML.
+    expect(processed.spec).toEqual({ type: 'spanner-database', owner: 'group:default/platform' });
   });
 
   it('ignores an entity that is not a GCP service account', async () => {

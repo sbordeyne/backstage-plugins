@@ -1,5 +1,13 @@
+import { createHash } from 'crypto';
 import { parseEntityRef, stringifyEntityRef } from '@backstage/catalog-model';
-import { ANNOTATION_GCP_REGION, ANNOTATION_GCP_SELF_LINK, MAX_ANNOTATION_LENGTH, MAX_TAGS } from './constants';
+import { LoggerService } from '@backstage/backend-plugin-api';
+import {
+  ANNOTATION_GCP_REGION,
+  ANNOTATION_GCP_SELF_LINK,
+  GCP_LABEL_KEY,
+  MAX_ANNOTATION_LENGTH,
+  MAX_TAGS,
+} from './constants';
 
 /**
  * Labels as the GCP APIs hand them over: every client types the map slightly differently, and the
@@ -23,17 +31,56 @@ export function selfLinkAnnotation(selfLink: string | undefined | null): Record<
   return selfLink ? { [ANNOTATION_GCP_SELF_LINK]: selfLink } : {};
 }
 
+/** A key folded into the shape GCP accepts, or undefined when nothing legal is left of it. */
+function toGcpLabelKey(labelKey: string): string | undefined {
+  const folded = labelKey
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_')
+    .slice(0, 63);
+  return GCP_LABEL_KEY.test(folded) ? folded : undefined;
+}
+
 /**
  * The label keys a configured key is looked up under.
  *
- * GCP rejects label keys outside `[a-z]([-a-z0-9_]{0,62})?`, so a Backstage-style key such as
- * `backstage.io/owner-ref` cannot be set on a resource at all. Its dots and slashes are folded to
- * underscores and that form — `backstage_io_owner-ref` — is accepted as meaning the same label, so
- * the default key works on real resources without every installation having to reconfigure it.
+ * GCP rejects any key outside {@link GCP_LABEL_KEY}, so a Backstage-style key such as
+ * `backstage.io/owner-ref` cannot be set on a resource at all — the API turns it away. The defaults
+ * are therefore spelled the way GCP accepts them, and a configured key that is not is folded to its
+ * legal form so the label is still found rather than silently never matching.
+ *
+ * Both spellings are returned, the configured one first: an installation whose labels were written
+ * by something other than the GCP API keeps working.
  */
 export function ownerLabelKeys(labelKey: string): string[] {
-  const gcpLegal = labelKey.toLocaleLowerCase().replace(/[^a-z0-9_-]+/g, '_');
-  return gcpLegal === labelKey ? [labelKey] : [labelKey, gcpLegal];
+  const gcpLegal = toGcpLabelKey(labelKey);
+  return !gcpLegal || gcpLegal === labelKey ? [labelKey] : [labelKey, gcpLegal];
+}
+
+/**
+ * Checks a configured label key, answering the spelling to look resources up under.
+ *
+ * A key GCP would reject can never match a label on a real resource, so leaving it unreported means
+ * every resource quietly falls back to the default owner or to no system at all — the kind of
+ * failure that looks like the module not working rather than like a typo. A key that folds to
+ * something legal is reported at error level and the folded form used; one that cannot be folded at
+ * all throws, because there is no reading of it that would ever match.
+ */
+export function readConfiguredLabelKey(labelKey: string, setting: string, logger: LoggerService): string {
+  if (GCP_LABEL_KEY.test(labelKey)) {
+    return labelKey;
+  }
+  const gcpLegal = toGcpLabelKey(labelKey);
+  if (!gcpLegal) {
+    throw new Error(
+      `'${labelKey}' is not usable as ${setting}: a GCP label key is 1-63 characters, starts with a ` +
+        `lowercase letter and holds only lowercase letters, digits, dashes and underscores`,
+    );
+  }
+  logger.error(
+    `${setting}='${labelKey}' is not a label key GCP accepts, so no resource can carry it. Reading ` +
+      `'${gcpLegal}' instead — set ${setting} to that to silence this.`,
+  );
+  return gcpLegal;
 }
 
 /** The value of the first label key that carries one, ignoring empty values. */
@@ -93,6 +140,46 @@ export function segmentAfter(name: string | null | undefined, key: string): stri
 }
 
 /**
+ * Domains whose *local* part is the project rather than the account name:
+ * `my-project@appspot.gserviceaccount.com` is App Engine's account for `my-project`.
+ */
+const PROJECT_IS_LOCAL_PART = new Set(['appspot.gserviceaccount.com']);
+
+/** Google-managed service agents are `service-<project number>@<agent domain>`. */
+const SERVICE_AGENT_LOCAL_PART = /^service-\d+$/;
+
+/** The `.iam.gserviceaccount.com` suffix, under which the domain's first label is a project id. */
+const USER_MANAGED_DOMAIN = '.iam.gserviceaccount.com';
+
+/**
+ * The project a service account belongs to, or undefined when its email cannot say.
+ *
+ * Only a *user-managed* account spells its project out: `auth-sa@my-project.iam.gserviceaccount.com`
+ * lives in `my-project`. The accounts workloads run as by default do not —
+ * `123456-compute@developer.gserviceaccount.com` and
+ * `service-123456@gcp-sa-pubsub.iam.gserviceaccount.com` name Google's own domains and identify the
+ * project by *number*, which no entity is ever named after. Guessing the first label of those
+ * domains yields `developer` or `gcp-sa-pubsub` as a project id and every ref built from it dangles,
+ * so they return undefined and the caller falls back to the project it is enumerating.
+ */
+export function serviceAccountProject(email: string): string | undefined {
+  const [localPart, domain] = email.split('@');
+  if (!domain) {
+    return undefined;
+  }
+  if (PROJECT_IS_LOCAL_PART.has(domain)) {
+    return localPart || undefined;
+  }
+  if (!domain.endsWith(USER_MANAGED_DOMAIN) || SERVICE_AGENT_LOCAL_PART.test(localPart)) {
+    return undefined;
+  }
+  const project = domain.slice(0, -USER_MANAGED_DOMAIN.length);
+  // A service agent whose local part is not the usual `service-<number>` is still recognizable by
+  // the `gcp-sa-` domain Google gives them.
+  return !project || project.startsWith('gcp-sa-') ? undefined : project;
+}
+
+/**
  * An annotation value cut to {@link MAX_ANNOTATION_LENGTH}, with a marker saying so.
  *
  * The IAM annotations summarize lists with no natural bound, and a truncated value that admits it
@@ -146,6 +233,22 @@ export function stripPrefixes(name: string, prefixes: string[]): string {
 }
 
 /**
+ * The entity name a Pub/Sub subscription is ingested under.
+ *
+ * Topics and subscriptions are separate namespaces in Pub/Sub, and naming a subscription after the
+ * topic it reads is a common convention — an `orders` topic with an `orders` subscription. Both
+ * become `Resource` entities in the same catalog namespace, so without a suffix the two carry the
+ * same entity ref: one `full` mutation then contains that ref twice, the catalog keeps whichever it
+ * saw last, and the surviving subscription depends on itself.
+ *
+ * Shared with the ref builder, so a relation pointing at a subscription and the subscription's own
+ * entity agree on the name.
+ */
+export function pubsubSubscriptionName(strippedName: string): string {
+  return `${strippedName}-sub`;
+}
+
+/**
  * The region a location belongs to: `europe-west1-b` is in `europe-west1`, and a region is its own.
  *
  * Zonal resources regularly reference regional ones — a zonal GKE cluster sits in a regional subnet
@@ -191,21 +294,65 @@ export function apiSelfLink(host: string, version: string, resourceName: string 
   return `https://${host}/${version}/${(resourceName ?? '').replace(/^\//, '')}`;
 }
 
+/** Longest name the catalog accepts for an entity or a namespace. */
+const MAX_ENTITY_NAME_LENGTH = 63;
+
+/**
+ * A short digest of the original name, appended when truncation would otherwise merge two
+ * resources.
+ *
+ * Six base-36 characters of a SHA-1, which is not a security boundary — it only has to be stable
+ * across refreshes and different for names that differ, so the entity a resource maps to does not
+ * move and two long names do not collapse onto one.
+ */
+function nameDigest(name: string): string {
+  return parseInt(createHash('sha1').update(name).digest('hex').slice(0, 12), 16).toString(36).slice(0, 6);
+}
+
 /**
  * A GCP name as an entity name the catalog accepts.
  *
- * Lowercased with anything outside `[a-z0-9-]` folded to `-`, then truncated to 63 characters.
- * Leading and trailing separators are trimmed because the catalog requires a name to start and end
- * with an alphanumeric — Firestore's `(default)` database would otherwise become `-default-` and
- * have its entity rejected.
+ * Lowercased with anything outside `[a-z0-9-]` folded to `-`. Leading and trailing separators are
+ * trimmed because the catalog requires a name to start and end with an alphanumeric — Firestore's
+ * `(default)` database would otherwise become `-default-` and have its entity rejected.
+ *
+ * A name longer than {@link MAX_ENTITY_NAME_LENGTH} keeps a digest of the original, since two
+ * resources whose names differ only past the limit are a real thing to have — generated names carry
+ * their distinguishing suffix at the end — and plain truncation would give them one entity between
+ * them, with each refresh overwriting the other's.
+ *
+ * Throws when nothing survives normalization — a name of punctuation alone would otherwise yield
+ * `resource:namespace/`, which the catalog rejects, taking the provider's whole mutation with it.
+ * The caller skips that one resource instead. Use {@link formatResourceNameOrUndefined} where an
+ * unusable name is not worth failing over.
  */
 export function formatResourceName(name: string): string {
-  return name
+  const formatted = formatResourceNameOrUndefined(name);
+  if (!formatted) {
+    throw new Error(`'${name}' has no characters an entity name can be built from`);
+  }
+  return formatted;
+}
+
+/**
+ * {@link formatResourceName}, answering undefined instead of throwing when nothing survives
+ * normalization.
+ *
+ * For the places where an unusable name is not worth failing over: a relation whose target
+ * normalizes to nothing points at an entity that can never exist, so the edge is dropped and the
+ * resource holding it is still ingested.
+ */
+export function formatResourceNameOrUndefined(name: string): string | undefined {
+  const normalized = name
     .toLocaleLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
-    .replace(/^-+/, '')
-    .slice(0, 63)
-    .replace(/-+$/, '');
+    .replace(/^-+/, '');
+  if (normalized.length <= MAX_ENTITY_NAME_LENGTH) {
+    return normalized.replace(/-+$/, '') || undefined;
+  }
+  const suffix = `-${nameDigest(name)}`;
+  const head = normalized.slice(0, MAX_ENTITY_NAME_LENGTH - suffix.length).replace(/-+$/, '');
+  return `${head}${suffix}`;
 }
 
 /**

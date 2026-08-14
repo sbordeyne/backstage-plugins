@@ -105,31 +105,59 @@ service account key file, or rely on the ambient credentials of the environment.
 ## Configuration
 
 Each provider is enabled by the presence of its config key under `catalog.providers.gcp`. Every
-provider takes a `projects` list and a `schedule` block, and accepts the optional `enabled`, `owner`,
-`system`, `namespace`, `region`, `locations`, `links`, `tags`, `descriptions` and `extraLinks`
-described below.
+provider needs a `projects` list and a `schedule` block, both of which can be set once on
+`catalog.providers.gcp` and shared, and accepts the optional `enabled`, `owner`, `system`,
+`namespace`, `region`, `locations`, `links`, `tags`, `descriptions` and `extraLinks` described
+below.
+
+A provider that sets its own `projects` or `schedule` overrides the shared one rather than adding to
+it, so narrowing one resource type to a single project, or refreshing the ones that churn more
+often, stays a local edit. A provider with neither its own nor a shared value fails loudly rather
+than ingesting nothing.
 
 `enabled` defaults to `true`, so a provider runs as soon as its block exists. Setting it to `false`
 stops that resource type from being ingested without deleting the configuration you would have to
-put back to turn it on again.
+put back to turn it on again, and its projects stop counting towards the IAM sweep.
+
+> **Write `storage: {}`, not a bare `storage:`.** A provider is enabled by a _mapping_ under its key.
+> A key with nothing under it is null, and Backstage's config loader discards null keys before any
+> plugin reads them — so a bare key is indistinguishable from no key at all and the provider is
+> never registered. This only comes up for a block that takes everything from the shared `projects`
+> and `schedule`; the module warns at startup if a `gcp` block is configured but no provider was
+> registered.
 
 ```yaml
 catalog:
   providers:
     gcp:
+      projects: [my-project]
+      schedule: { frequency: { hours: 1 }, timeout: { minutes: 10 } }
+      storage: {} # ✅ enabled, on the shared projects and schedule
+      vpc: # ❌ silently ignored
+```
+
+```yaml
+catalog:
+  providers:
+    gcp:
+      # Projects and refresh schedule for every provider below unless it sets its own.
+      projects: [my-project, my-other-project]
+      schedule:
+        frequency: { hours: 1 }
+        timeout: { minutes: 10 }
       # Applied to every provider below unless it sets its own
       # `owner` / `ownerLabel` / `system` / `systemLabel` / `namespace` / `region`.
       defaultOwner: group:default/platform
       defaultRegion: europe-west1
       # Label read off each resource to find its owner.
-      # Defaults to 'backstage.io/owner-ref'.
-      ownerLabel: backstage.io/owner-ref
+      # Defaults to 'backstage_io_owner-ref'.
+      ownerLabel: backstage_io_owner-ref
       # Label read off each resource to find the system it belongs to.
-      # Defaults to 'backstage.io/system-ref'.
-      systemLabel: backstage.io/system-ref
+      # Defaults to 'backstage_io_system-ref'.
+      systemLabel: backstage_io_system-ref
       # System for resources whose labels name none. Omitted by default.
       defaultSystem: system:default/infrastructure
-      # Namespace template for every ingested entity. Defaults to 'default'.
+      # Namespace template for every ingested entity. Defaults to 'gcp-{{projectId}}'.
       defaultNamespace: gcp-{{projectId}}
       # Link families written onto every entity.
       links:
@@ -215,15 +243,21 @@ catalog:
 
 `spec.owner` is taken from a label on the GCP resource itself, so a team that relabels a resource
 moves it in the catalog without anyone editing Backstage config. The label key is `ownerLabel`,
-defaulting to `backstage.io/owner-ref`, and is resolved per provider as `ownerLabel` →
+defaulting to `backstage_io_owner-ref`, and is resolved per provider as `ownerLabel` →
 `catalog.providers.gcp.ownerLabel` → the default.
 
 Two GCP restrictions shape how the label is written:
 
-- **Keys** must match `[a-z]([-a-z0-9_]{0,62})?`, so `backstage.io/owner-ref` cannot be set on a
-  resource at all. The key is therefore also matched with `.` and `/` folded to underscores, and
-  the label you actually put on a resource is `backstage_io_owner-ref`. Configure `ownerLabel`
-  directly if you prefer a plain key such as `backstage-owner-ref`.
+- **Keys** are 1-63 characters, open with a lowercase letter and hold only lowercase letters,
+  digits, dashes and underscores — so a Backstage-style `backstage.io/owner-ref` is rejected by the
+  API and cannot be set on a resource at all. The default is spelled `backstage_io_owner-ref` for
+  that reason. Configure `ownerLabel` if you prefer a plain key such as `backstage-owner-ref`.
+
+  A key configured here that GCP would reject is **logged as an error** and read under its folded
+  spelling, so the label is still found while the misconfiguration stays visible. One that cannot be
+  folded into a legal key — starting with a digit, say — **stops the provider from starting**, since
+  no resource could ever carry it.
+
 - **Values** are restricted the same way, so a full entity ref does not fit. A bare value like
   `platform-team` is read as `group:default/platform-team`. A value that does name a kind or
   namespace is parsed as the ref it already is.
@@ -242,8 +276,8 @@ as absent, rather than emitting an entity the catalog would reject.
 ### Systems
 
 `spec.system` works the same way as the owner: it is read from a label on the resource, under the
-key `systemLabel` → `catalog.providers.gcp.systemLabel` → `backstage.io/system-ref`, with the same
-two GCP restrictions. The label you put on a resource is therefore `backstage_io_system-ref`, and a
+key `systemLabel` → `catalog.providers.gcp.systemLabel` → `backstage_io_system-ref`, with the same
+two GCP restrictions and the same validation. The label you put on a resource is therefore `backstage_io_system-ref`, and a
 bare value such as `payments` is read as `system:default/payments`.
 
 ```bash
@@ -258,8 +292,8 @@ pointing at nothing. A label whose value is not a usable ref is logged and treat
 
 ### Namespaces
 
-Every ingested entity lands in the namespace given by `namespace` → `defaultNamespace` → `default`,
-which is a template over the resource being ingested:
+Every ingested entity lands in the namespace given by `namespace` → `defaultNamespace` →
+`gcp-{{projectId}}`, which is a template over the resource being ingested:
 
 | Placeholder     | Value                                                    |
 | --------------- | -------------------------------------------------------- |
@@ -274,11 +308,19 @@ The rendered value is lowercased with anything outside `[a-z0-9-]` folded to `-`
 `gcp-bucket`. A template naming an unknown placeholder is logged and ignored, and its entities land
 in `default` — visibly wrong, but still ingested.
 
+The default namespaces by project because GCP names are only unique _within_ a project: every
+project has a `default` VPC network and subnet, and firewall rules, service accounts and secrets
+repeat across projects by convention. Putting two projects in one namespace gives their resources
+the same entity ref, and a provider applies a `full` mutation, so the catalog keeps one of them and
+loses the other. Set `defaultNamespace: default` to go back to a single namespace, which is safe
+only for a single-project installation.
+
 > **Use `{{…}}`, not `${…}`.** Backstage's own config loader substitutes `${VAR}` with an
 > **environment variable** before any plugin reads the value, and when the variable is unset it
 > discards the whole key. `defaultNamespace: gcp-${projectId}` therefore silently becomes no
-> `defaultNamespace` at all, and everything lands in `default`. `{{projectId}}` is untouched by the
-> loader. The dollar spelling is still understood if it reaches the provider, so an existing config
+> `defaultNamespace` at all, and entities fall back to the built-in `gcp-{{projectId}}` — which
+> happens to look right, so a custom template can go missing without anything showing it.
+> `{{projectId}}` is untouched by the loader. The dollar spelling is still understood if it reaches the provider, so an existing config
 > can also be fixed by escaping it as `gcp-$${projectId}` — but `{{…}}` is the one to write.
 
 Relations between entities follow the namespaces: each ref is built from the namespace of the
@@ -288,6 +330,21 @@ provider that ingests the target, so namespacing providers differently keeps the
 aggregated Compute listings and the `locations/-` listings. It is not the same key as `region`,
 which is the fallback recorded when the API reports no location at all. A region also matches its
 zones, so `europe-west1` keeps an instance in `europe-west1-b`.
+
+### Entity names
+
+An entity is named after the GCP resource, lowercased with anything outside `[a-z0-9-]` folded to
+`-`. Two cases change the name further, both so that two resources cannot end up sharing one entity:
+
+- **Pub/Sub subscriptions** get a `-sub` suffix. Topics and subscriptions are separate namespaces in
+  Pub/Sub and naming a subscription after the topic it reads is a common convention, but both become
+  `Resource` entities in the same catalog namespace.
+- **Names longer than 63 characters**, the catalog's limit, keep a short digest of the original
+  instead of being cut. Generated names carry their distinguishing part at the end, so plain
+  truncation would give a set of them one entity between them.
+
+Refs built towards these entities apply the same rules, so a relation pointing at a subscription or
+at a long-named resource resolves.
 
 ## The access graph
 
@@ -340,7 +397,9 @@ worth knowing.
 **Edges only exist for accounts that are ingested.** Keep the `service-account` provider enabled;
 a service account from an unconfigured project holding a role on your bucket produces nothing.
 Setting `iam.annotateResources: true` adds a `cloud.google.com/iam-members` annotation to each
-resource for that audit view.
+resource for that audit view. It covers every resource type that has an IAM policy of its own;
+types that hold none — a Cloud NAT gateway, a Dataflow job — carry no annotation whatever the
+setting, and `memberTypes` decides which kinds of principal are listed.
 
 **Bindings are not entities.** One entity per (resource, role) would multiply the catalog several
 times over on the fastest-changing data in GCP, and put an extra hop in every path. The role is kept
@@ -352,7 +411,10 @@ catalog:
     gcp:
       iam:
         enabled: true # default
-        memberTypes: [serviceAccount] # default; add user or group for human grants
+        # Which principals are paid attention to. Relations are unaffected by widening this —
+        # only service accounts are ingested as entities — but `annotateResources` lists the
+        # kinds named here, so adding `user` or `group` surfaces human grants there.
+        memberTypes: [serviceAccount] # default
         excludeRoles: [roles/viewer] # noisy blanket grants
         maxEdgesPerMember: 200 # default
         annotateResources: false # default
@@ -369,7 +431,13 @@ catalog:
     gcp:
       iam:
         relations: gcp # builtin (default) | gcp
+      # Or per provider, to move one resource type over at a time.
+      spanner:
+        relations: gcp
 ```
+
+A provider's own `relations` wins over the shared `iam.relations`, so an installation can adopt the
+vocabulary one resource type at a time rather than across the whole catalog at once.
 
 IAM edges take the verb the role grants, classified by role suffix so a role this module has never
 heard of still lands somewhere sensible:
@@ -411,6 +479,15 @@ the module registers. That is the supported way to add relation types, and it me
 longer appear as `dependsOn`: anything filtering on it, including some default Catalog Graph card
 configurations, stops showing them. Check your entity page's graph card before switching an existing
 installation over.
+
+The module exports the vocabulary so a graph card can be pointed at it without the names being
+copied out by hand:
+
+```tsx
+import { allRelationTypes } from '@sbordeyne/plugin-catalog-backend-module-gcp-provider';
+
+<EntityCatalogGraphCard relations={allRelationTypes()} />;
+```
 
 ### Relations
 
@@ -514,6 +591,63 @@ tags:
 Values are lowercased with anything outside `[a-z0-9+#]` folded to `-`, deduplicated, and capped at
 25 tags per entity so a heavily labelled resource cannot bury its own entity page.
 
+## Failure behaviour
+
+A provider applies a `full` mutation: the entities it returns become the complete set for that
+provider, and anything missing from them is deleted from the catalog. That single fact decides how
+every failure is handled — a short answer and a correct one are indistinguishable to the catalog, so
+anything that might be short has to stop rather than be applied.
+
+**Stops the backend from starting.** Configuration that could never work:
+
+- no `projects` and no shared `projects`, or the same for `schedule`
+- an `ownerLabel`, `systemLabel` or `tags.labelKeys` entry that cannot be folded into a legal GCP
+  label key
+
+**Aborts the refresh, changing nothing.** The catalog keeps what it already has:
+
+- any API error other than 403/404 — a timeout, a 500, a quota error
+- a listing that hits the pagination cap, since ingesting it would delete everything past the last
+  page read
+- an IAM sweep truncated at `iam.maxBindingsPerProject`, which would delete every relation past the
+  cap
+
+**Skipped, with a warning, keeping everything else.** One resource lost, not the set:
+
+- a resource whose name normalizes to nothing an entity name can be built from
+- a relation whose target name does the same — the edge is dropped, the resource is kept
+
+**Logged and carried on.** Degraded but not wrong:
+
+- a project answering 403 or 404: the API is disabled, the project is gone, or the credentials
+  cannot read it
+- a project whose Cloud Asset API is off, which contributes no IAM edges
+- a namespace or link template naming an unknown variable, which falls back to `default` or is
+  dropped
+- an owner or system label whose value is not a usable entity ref
+
+## What the module exports
+
+The default export is the module itself. Alongside it, the pieces something else may need to read
+what this module writes:
+
+```ts
+import {
+  catalogModuleGcpProvider, // also the default export
+  ANNOTATION_GCP_PROJECT_ID, // every annotation above, by name
+  allRelationTypes, // every relation type the gcp vocabulary emits
+  IAM_RELATIONS, // the role → verb pairs
+  STRUCTURAL_RELATIONS, // partOf / attachedTo pairs
+  classifyRole, // what verb a role maps to
+  RESOURCE_TYPES, // every ingested type, with its docs url and asset type
+  RESOURCE_CONFIG_KEYS, // the config keys those types belong to
+} from '@sbordeyne/plugin-catalog-backend-module-gcp-provider';
+```
+
+A frontend card filtering on `cloud.google.com/project-id`, or a graph view listing the custom
+relation types, should take them from here rather than repeating the strings — a copied constant is
+a dependency on this module that nothing checks.
+
 ## Annotations
 
 Ingested entities carry the following annotations:
@@ -527,6 +661,31 @@ Ingested entities carry the following annotations:
 | `cloud.google.com/status`          | State the API reports, e.g. `RUNNING`, `READY`    |
 | `cloud.google.com/vpc-peerings`    | Names of the peerings configured on a VPC network |
 | `cloud.google.com/machine-type`    | Machine type of a Compute Engine instance         |
+
+Service accounts carry what IAM says about them, and Kubernetes accounts what Workload Identity
+says:
+
+| Annotation                                | Meaning                                                |
+| ----------------------------------------- | ------------------------------------------------------ |
+| `cloud.google.com/iam-roles`              | Distinct roles the account holds on resources          |
+| `cloud.google.com/iam-access`             | Which role on which resource, as `resource=role;…`     |
+| `cloud.google.com/iam-project-roles`      | Roles held at project level, which produce no edges    |
+| `cloud.google.com/iam-permissions`        | Permissions a custom IAM role includes                 |
+| `cloud.google.com/workload-identity-pool` | Identity pool a Kubernetes account belongs to          |
+| `cloud.google.com/ksa-namespace`          | Kubernetes namespace of an ingested Kubernetes account |
+
+Two more appear only when Cloud Asset Inventory has been read for the resource:
+
+| Annotation                     | Meaning                                                                |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `cloud.google.com/asset-name`  | Name Cloud Asset Inventory knows the resource by                       |
+| `cloud.google.com/iam-members` | Who holds which role on it, written only under `iam.annotateResources` |
+
+`asset-name` is written only where that name is certain: one the provider spells out, or a derived
+one that a policy lookup has just matched. The name is derived from the resource's self link, and
+several services name their assets by project _number_, which a self link does not carry — so an
+unconfirmed derivation is used for the lookup, where a miss costs nothing, and never published as
+though it were fact.
 
 Resource types add their own on top: `cloud.google.com/ip-cidr-range` on a subnet,
 `cloud.google.com/dns-name` on a DNS zone, `cloud.google.com/schedule` on a Scheduler job,

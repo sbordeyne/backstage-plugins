@@ -1,10 +1,13 @@
-import { GcpEntityProviderBase } from './GcpEntityProviderBase';
-import * as pubsub from '@google-cloud/pubsub';
 import { DeferredEntity } from '@backstage/plugin-catalog-node';
-import { ANNOTATION_LOCATION, ANNOTATION_ORIGIN_LOCATION } from '@backstage/catalog-model';
-import { apiSelfLink, formatResourceName, lastSegment, stripPrefixes } from '../utils';
+import { google, pubsub_v1 } from 'googleapis';
+import { GcpRestEntityProvider } from './GcpRestEntityProvider';
+import { apiSelfLink, lastSegment, pubsubSubscriptionName, stripPrefixes } from '../utils';
 
-export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub> {
+/** The topic a subscription whose topic has been deleted reports. */
+const DELETED_TOPIC = '_deleted-topic_';
+
+/** Pub/Sub topics and the subscriptions on them. */
+export class GcpPubSubEntityProvider extends GcpRestEntityProvider<pubsub_v1.Pubsub> {
   getProviderName(): string {
     return 'gcp-pubsub';
   }
@@ -13,127 +16,130 @@ export class GcpPubSubEntityProvider extends GcpEntityProviderBase<pubsub.PubSub
     return 'pubsub';
   }
 
-  getClient(): pubsub.PubSub {
-    return new pubsub.PubSub();
+  getClient(): pubsub_v1.Pubsub {
+    return google.pubsub({ version: 'v1', auth: this.googleAuth });
   }
 
-  private formatName(baseName: string): string {
-    const resourceName = baseName.split('/').pop();
-    if (!resourceName) {
-      throw new Error(`Invalid resource name: ${baseName}`);
-    }
+  /** The leaf of a topic or subscription path, with the configured prefixes taken off. */
+  private strippedName(resourceName: string): string {
     const prefixes = this.config.getOptionalStringArray('stripPrefixes') ?? [];
-    return formatResourceName(stripPrefixes(resourceName, prefixes).trimStart());
+    return stripPrefixes(lastSegment(resourceName), prefixes);
   }
 
   private subscriptionToResource(
-    subscription: pubsub.Subscription,
-    topicRef: string,
+    subscription: pubsub_v1.Schema$Subscription,
+    topicRef: string | undefined,
     project: string,
   ): DeferredEntity | undefined {
     if (!subscription.name) {
       return undefined;
     }
-    const location = `${this.getProviderName()}:${subscription.name}`;
-    const labels = subscription.metadata?.labels;
-    return {
-      entity: {
-        apiVersion: 'backstage.io/v1alpha1',
-        kind: 'Resource',
-        metadata: this.metadataOf({
-          name: this.formatName(subscription.name),
-          projectId: project,
-          type: 'pubsub-subscription',
-          selfLink: apiSelfLink('pubsub.googleapis.com', 'v1', subscription.name),
-          labels,
-          // The name the console knows, which stripPrefixes may have taken out of the entity name.
-          title: lastSegment(subscription.name),
-          summary: `Pub/Sub subscription on topic ${lastSegment(topicRef)}`,
-          consolePath: `cloudpubsub/subscription/detail/${lastSegment(subscription.name)}`,
-          logFilter: `resource.type="pubsub_subscription" resource.labels.subscription_id="${lastSegment(
-            subscription.name,
-          )}"`,
-          annotations: {
-            [ANNOTATION_LOCATION]: location,
-            [ANNOTATION_ORIGIN_LOCATION]: location,
-          },
-        }),
-        spec: {
-          type: 'pubsub-subscription',
-          owner: this.ownerOf(labels),
-          ...this.systemOf(labels),
-          dependsOn: [topicRef],
-        },
+    const subscriptionId = lastSegment(subscription.name);
+
+    return this.toEntity(
+      {
+        name: pubsubSubscriptionName(this.strippedName(subscription.name)),
+        projectId: project,
+        type: 'pubsub-subscription',
+        selfLink: apiSelfLink('pubsub.googleapis.com', 'v1', subscription.name),
+        labels: subscription.labels,
+        // The name the console knows, which stripPrefixes may have taken out of the entity name.
+        title: subscriptionId,
+        summary: topicRef
+          ? `Pub/Sub subscription on topic ${lastSegment(topicRef)}`
+          : 'Pub/Sub subscription whose topic has been deleted',
+        consolePath: `cloudpubsub/subscription/detail/${subscriptionId}`,
+        logFilter: `resource.type="pubsub_subscription" resource.labels.subscription_id="${subscriptionId}"`,
+        assetName: `//pubsub.googleapis.com/projects/${project}/subscriptions/${subscriptionId}`,
       },
-    };
+      { dependsOn: topicRef ? [topicRef] : [] },
+    );
   }
 
-  private async topicToResource(topic: pubsub.Topic, project: string): Promise<DeferredEntity[]> {
-    if (!topic.name) {
-      return [];
-    }
-    const location = `${this.getProviderName()}}:${topic.name}`;
-    const topicName = this.formatName(topic.name);
-    const labels = topic.metadata?.labels;
-    const topicNamespace = this.namespaceOf({
+  private topicToResource(
+    topic: pubsub_v1.Schema$Topic,
+    subscriptions: number,
+    project: string,
+  ): DeferredEntity | undefined {
+    const topicId = lastSegment(topic.name);
+
+    return this.toEntity({
+      name: this.strippedName(topic.name ?? ''),
+      projectId: project,
+      type: 'pubsub-topic',
+      selfLink: apiSelfLink('pubsub.googleapis.com', 'v1', topic.name),
+      labels: topic.labels,
+      title: topicId,
+      summary: `Pub/Sub topic with ${subscriptions} subscription(s)`,
+      consolePath: `cloudpubsub/topic/detail/${topicId}`,
+      logFilter: `resource.type="pubsub_topic" resource.labels.topic_id="${topicId}"`,
+      assetName: `//pubsub.googleapis.com/projects/${project}/topics/${topicId}`,
+    });
+  }
+
+  /** Ref of the entity a topic path is ingested as, under this provider's own naming. */
+  private topicRef(topicName: string, project: string): string | undefined {
+    return this.ownRef({
       projectId: project,
       type: 'pubsub-topic',
       provider: this.getProviderName(),
-      name: topicName,
+      name: this.strippedName(topicName),
     });
-    const [subscriptions] = await topic.getSubscriptions();
-    const subscriptionResources = subscriptions
-      .map(subscription =>
-        this.subscriptionToResource(subscription, `resource:${topicNamespace}/${topicName}`, project),
-      )
-      .filter(sub => sub !== undefined);
-    return [
-      {
-        entity: {
-          apiVersion: 'backstage.io/v1alpha1',
-          kind: 'Resource',
-          metadata: this.metadataOf({
-            name: topicName,
-            projectId: project,
-            type: 'pubsub-topic',
-            selfLink: apiSelfLink('pubsub.googleapis.com', 'v1', topic.name),
-            labels,
-            title: lastSegment(topic.name),
-            summary: `Pub/Sub topic with ${subscriptionResources.length} subscription(s)`,
-            consolePath: `cloudpubsub/topic/detail/${lastSegment(topic.name)}`,
-            logFilter: `resource.type="pubsub_topic" resource.labels.topic_id="${lastSegment(topic.name)}"`,
-            annotations: {
-              [ANNOTATION_LOCATION]: location,
-              [ANNOTATION_ORIGIN_LOCATION]: location,
-            },
-          }),
-          spec: {
-            type: 'pubsub-topic',
-            owner: this.ownerOf(labels),
-            ...this.systemOf(labels),
-          },
-        },
-      },
-      ...subscriptionResources,
-    ];
   }
 
   public async getResources(): Promise<DeferredEntity[]> {
-    const topics = await Promise.all(
-      this.config.getStringArray('projects').map(async project => {
-        this.logger.info(`Discovering pubsubs in project: ${project}`);
-        const [pageTopics] = await this.client.getTopics({
-          autoPaginate: true,
-        });
-        this.logger.info(`Found ${pageTopics.length} topics in project: ${project}`);
-        return await Promise.all(
-          pageTopics
-            .filter(topic => topic !== undefined)
-            .map(topic => this.topicToResource(topic, project))
-            .flat() ?? [],
-        );
-      }),
-    );
-    return topics.flat(2);
+    return this.forEachProject(async project => {
+      // Subscriptions are listed once for the whole project rather than once per topic: the
+      // per-topic call answers with names alone, so it would cost a `get` per subscription to
+      // recover the labels an entity is built from.
+      const [topics, subscriptions] = await Promise.all([
+        this.listAll<pubsub_v1.Schema$Topic>(async pageToken => {
+          const { data } = await this.client.projects.topics.list({ project: `projects/${project}`, pageToken });
+          return { items: data.topics, nextPageToken: data.nextPageToken };
+        }),
+        this.listAll<pubsub_v1.Schema$Subscription>(async pageToken => {
+          const { data } = await this.client.projects.subscriptions.list({
+            project: `projects/${project}`,
+            pageToken,
+          });
+          return { items: data.subscriptions, nextPageToken: data.nextPageToken };
+        }),
+      ]);
+
+      const byTopic = new Map<string, pubsub_v1.Schema$Subscription[]>();
+      for (const subscription of subscriptions) {
+        const topic = subscription.topic ?? DELETED_TOPIC;
+        byTopic.set(topic, [...(byTopic.get(topic) ?? []), subscription]);
+      }
+
+      const entities: DeferredEntity[] = [];
+      for (const topic of topics) {
+        if (!topic.name) {
+          continue;
+        }
+        const onTopic = byTopic.get(topic.name) ?? [];
+        const topicEntity = this.topicToResource(topic, onTopic.length, project);
+        if (!topicEntity) {
+          continue;
+        }
+        entities.push(topicEntity);
+        for (const subscription of onTopic) {
+          const entity = this.subscriptionToResource(subscription, this.topicRef(topic.name, project), project);
+          if (entity) {
+            entities.push(entity);
+          }
+        }
+      }
+
+      // A subscription whose topic is gone is still a real resource, and is still worth cataloguing.
+      for (const subscription of byTopic.get(DELETED_TOPIC) ?? []) {
+        const entity = this.subscriptionToResource(subscription, undefined, project);
+        if (entity) {
+          entities.push(entity);
+        }
+      }
+
+      return entities;
+    });
   }
 }

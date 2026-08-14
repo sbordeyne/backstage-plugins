@@ -1,12 +1,18 @@
 import { DeferredEntity } from '@backstage/plugin-catalog-node';
 import { ANNOTATION_LOCATION, ANNOTATION_ORIGIN_LOCATION } from '@backstage/catalog-model';
 import { GcpEntityProviderBase, GcpResource } from './GcpEntityProviderBase';
-import { isPermanentlyEmpty, truncateAnnotation } from '../utils';
+import { formatResourceNameOrUndefined, isPermanentlyEmpty, truncateAnnotation } from '../utils';
 import { GcpProjectPolicies } from '../iam';
 import { ANNOTATION_GCP_IAM_MEMBERS } from '../constants';
+import { ASSET_HOST_BY_TYPE } from '../resourceTypes';
 import { StructuralRelationKind } from '../relations';
 
-/** Pages a single listing may fetch, so a runaway `nextPageToken` cannot loop forever. */
+/**
+ * Pages a single listing may fetch, so a runaway `nextPageToken` cannot loop forever.
+ *
+ * Hitting it is an error rather than a short result: every provider applies a `full` mutation, in
+ * which "the listing stopped early" and "these resources no longer exist" are the same thing.
+ */
 const MAX_PAGES = 100;
 
 /** One page of a `list` call, as the `googleapis` clients report it under `data`. */
@@ -34,16 +40,28 @@ export interface GcpStructuralRelation {
   [key: string]: string;
 }
 
-/** The relations a provider can declare on one resource. */
+/**
+ * The relations a provider can declare on one resource.
+ *
+ * Every list tolerates `undefined` entries and drops them, because a ref builder answers undefined
+ * for a target whose name normalizes to nothing. That keeps the call sites reading as a plain list
+ * of refs rather than each one having to filter, and keeps an unusable target from costing the
+ * resource its entity.
+ */
 export interface GcpRelations {
   /** Plain dependencies: this resource needs that one to work. */
-  dependsOn?: string[];
+  dependsOn?: (string | undefined)[];
   /** The reverse, for the rare edge that reads better declared from this side. */
-  dependencyOf?: string[];
+  dependencyOf?: (string | undefined)[];
   /** Containment: a Spanner database is part of its instance. */
-  partOf?: string[];
+  partOf?: (string | undefined)[];
   /** Attachment: a GKE cluster is plugged into its subnet, but is not part of it. */
-  attachedTo?: string[];
+  attachedTo?: (string | undefined)[];
+}
+
+/** The refs of a declared relation list, with the ones that could not be built dropped. */
+function definedRefs(refs: (string | undefined)[] | undefined): string[] {
+  return (refs ?? []).filter((ref): ref is string => Boolean(ref));
 }
 
 /** An item from an aggregated listing, with the scope it was found in. */
@@ -68,9 +86,26 @@ function scopeKindOf(scopeKey: string): GcpScopedItem<unknown>['scopeKind'] {
  * the error handling all of them would otherwise repeat.
  */
 export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<TApi> {
-  /** Projects this provider enumerates. */
+  /**
+   * Projects this provider enumerates, from its own `projects` then the shared
+   * `catalog.providers.gcp.projects`.
+   *
+   * Most installations point every provider at the same estate, and repeating the list under each
+   * of fifty-odd config keys is the kind of duplication that goes stale one key at a time. A
+   * provider that does name its own projects overrides the shared list rather than adding to it, so
+   * narrowing one resource type to a single project stays a local edit.
+   */
   protected get projects(): string[] {
-    return this.config.getStringArray('projects');
+    const projects = this.once('projects', () =>
+      this.config.getOptionalStringArray('projects') ?? this.gcpConfig.getOptionalStringArray('projects'),
+    );
+    if (!projects?.length) {
+      throw new Error(
+        `No projects for the GCP ${this.getProviderConfigKey()} provider: set 'projects' on the ` +
+          `provider or on catalog.providers.gcp to share one list across providers`,
+      );
+    }
+    return projects;
   }
 
   /**
@@ -80,8 +115,10 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
    * bounds the calls that would otherwise sweep every location in a project.
    */
   protected get locations(): string[] | undefined {
-    const locations = this.config.getOptionalStringArray('locations');
-    return locations && locations.length > 0 ? locations : undefined;
+    return this.once('locations', () => {
+      const locations = this.config.getOptionalStringArray('locations');
+      return locations && locations.length > 0 ? locations : undefined;
+    });
   }
 
   /** True when a resource in this location should be ingested, given {@link locations}. */
@@ -151,6 +188,17 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
         this.policiesByProject.set(project, await index.policiesOf(project));
       }),
     );
+    // Same reasoning as `iamPolicies`: these annotations go out in a `full` mutation, so a sweep
+    // that stopped early would have them removed from the entities it did not reach.
+    const truncated = [...this.policiesByProject.entries()]
+      .filter(([, project]) => project.truncated)
+      .map(([name]) => name);
+    if (truncated.length > 0) {
+      throw new Error(
+        `IAM policies for ${truncated.join(', ')} were truncated at iam.maxBindingsPerProject, so the ` +
+          `${ANNOTATION_GCP_IAM_MEMBERS} annotations would be incomplete; raise it, or narrow iam.roles.`,
+      );
+    }
   }
 
   /**
@@ -160,16 +208,49 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
    * This is the audit view — who can touch this — and is deliberately separate from the relations,
    * which exist only for principals the catalog actually ingests.
    */
-  private iamMembersAnnotation(resource: GcpResource): Record<string, string> {
-    if (!resource.assetName) {
-      return {};
+  /**
+   * Cloud Asset Inventory name of a resource, from the one the provider set or derived from its
+   * self link.
+   *
+   * Only ten of the fifty-odd providers used to set one, so `iam.annotateResources` silently
+   * covered a fifth of the estate: the annotation is looked up by asset name, and a resource
+   * without one simply never matched. The registry already knows the host each type is named
+   * under, and a CAI name is that host followed by the resource path — which is what a self link
+   * carries after its API version. Deriving it makes the option mean the same thing everywhere.
+   *
+   * Resources whose names are not project-scoped — a bucket is `//storage.googleapis.com/<name>` —
+   * do not follow the rule and set their own.
+   */
+  protected assetNameOf(resource: GcpResource): string | undefined {
+    if (resource.assetName) {
+      return resource.assetName;
     }
-    const bindings = this.policiesByProject.get(resource.projectId)?.membersByAsset.get(resource.assetName);
+    const host = ASSET_HOST_BY_TYPE.get(resource.type);
+    if (!host || !resource.selfLink) {
+      return undefined;
+    }
+    // Matched as a whole segment: a resource whose own name contains `projects/` would otherwise
+    // have the path read from the wrong offset.
+    const segments = resource.selfLink.replace(/^https?:\/\/[^/]+\//, '').split('/');
+    const start = segments.indexOf('projects');
+    return start < 0 ? undefined : `//${host}/${segments.slice(start).join('/')}`;
+  }
+
+  /** Bindings Cloud Asset Inventory reported for a resource, under the asset name it is known by. */
+  private bindingsOf(assetName: string | undefined, projectId: string) {
+    return assetName ? this.policiesByProject.get(projectId)?.membersByAsset.get(assetName) : undefined;
+  }
+
+  private iamMembersAnnotation(
+    bindings: { role: string; members: string[] }[] | undefined,
+  ): Record<string, string> {
     if (!bindings?.length) {
       return {};
     }
     const rendered = bindings
       .filter(binding => this.iamRoleWanted(binding.role))
+      .map(binding => ({ role: binding.role, members: binding.members.filter(m => this.iamMemberWanted(m)) }))
+      .filter(binding => binding.members.length > 0)
       .map(binding => `${binding.role}=${binding.members.join(',')}`)
       .join(';');
     return rendered ? { [ANNOTATION_GCP_IAM_MEMBERS]: truncateAnnotation(rendered) } : {};
@@ -182,40 +263,65 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
    * Every REST provider ends in this call, so the entity shape stays identical across resource
    * types and a provider is left holding only the mapping that is actually specific to it.
    */
-  protected toEntity(resource: GcpResource, relations?: GcpRelations): DeferredEntity {
-    const location = `${this.getProviderName()}:${resource.selfLink ?? resource.name}`;
+  protected toEntity(resource: GcpResource, relations?: GcpRelations): DeferredEntity | undefined {
     const mode = this.relationMode;
+
+    // Checked on its own rather than by catching everything `metadataOf` might throw, so a failure
+    // elsewhere — a malformed `extraLinks` block, say — surfaces as itself instead of being
+    // reported as an unusable name. A name of punctuation alone yields no entity name, and an
+    // entity the catalog rejects fails the whole mutation: skipping this one resource costs its
+    // entry, keeping it costs the rest.
+    if (!formatResourceNameOrUndefined(resource.name)) {
+      this.logger.warn(
+        `Skipping ${this.getProviderName()} resource in ${resource.projectId}: no entity name can be ` +
+          `built from '${resource.name}'`,
+      );
+      return undefined;
+    }
+
+    const location = `${this.getProviderName()}:${resource.selfLink ?? resource.name}`;
+    const assetName = this.assetNameOf(resource);
+    const bindings = this.bindingsOf(assetName, resource.projectId);
+    // The annotation records the name Cloud Asset Inventory knows the resource by, so it is only
+    // written where that is certain: one the provider spelled out, or a derived one the policy
+    // lookup just matched. The derivation is a good guess — several services name their assets by
+    // project *number*, which a self link does not carry — and a plausible wrong answer published
+    // as fact is worse than none, while a wrong guess used only for the lookup simply misses.
+    const knownAssetName = resource.assetName ?? (bindings?.length ? assetName : undefined);
+    const metadata = this.metadataOf({
+      ...resource,
+      assetName: knownAssetName,
+      annotations: {
+        [ANNOTATION_LOCATION]: location,
+        [ANNOTATION_ORIGIN_LOCATION]: location,
+        ...this.iamMembersAnnotation(bindings),
+        ...resource.annotations,
+      },
+    });
 
     // Containment and attachment are dependencies in the built-in vocabulary and relations of
     // their own in the GCP one, where they are handed to the processor that can emit custom types.
     const structural: GcpStructuralRelation[] = [
-      ...(relations?.partOf ?? []).map(targetRef => ({ type: 'partOf' as const, targetRef })),
-      ...(relations?.attachedTo ?? []).map(targetRef => ({ type: 'attachedTo' as const, targetRef })),
+      ...definedRefs(relations?.partOf).map(targetRef => ({ type: 'partOf' as const, targetRef })),
+      ...definedRefs(relations?.attachedTo).map(targetRef => ({ type: 'attachedTo' as const, targetRef })),
     ];
     const dependsOn = [
-      ...(relations?.dependsOn ?? []),
+      ...definedRefs(relations?.dependsOn),
       ...(mode === 'builtin' ? structural.map(relation => relation.targetRef) : []),
     ];
+    const dependencyOf = definedRefs(relations?.dependencyOf);
 
     return {
       entity: {
         apiVersion: 'backstage.io/v1alpha1',
         kind: 'Resource',
-        metadata: this.metadataOf({
-          ...resource,
-          annotations: {
-            [ANNOTATION_LOCATION]: location,
-            [ANNOTATION_ORIGIN_LOCATION]: location,
-            ...this.iamMembersAnnotation(resource),
-            ...resource.annotations,
-          },
-        }),
+        metadata,
         spec: {
           type: resource.type,
           owner: this.ownerOf(resource.labels),
           ...this.systemOf(resource.labels),
           ...(dependsOn.length ? { dependsOn } : {}),
-          ...(relations?.dependencyOf?.length ? { dependencyOf: relations.dependencyOf } : {}),
+          ...(dependencyOf.length ? { dependencyOf } : {}),
           ...(mode === 'gcp' && structural.length ? { gcpRelations: structural } : {}),
         },
       },
@@ -234,8 +340,11 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
         return items;
       }
     }
-    this.logger.warn(`Stopped paginating ${this.getProviderName()} after ${MAX_PAGES} pages, results are incomplete`);
-    return items;
+    throw new Error(
+      `Stopped paginating ${this.getProviderName()} after ${MAX_PAGES} pages. The result would be ` +
+        `incomplete, and a provider applies a full mutation, so ingesting it would delete every ` +
+        `resource beyond the last page read. Narrow the provider with 'locations' or a state filter.`,
+    );
   }
 
   /**
@@ -271,7 +380,10 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
         return found;
       }
     }
-    this.logger.warn(`Stopped paginating ${this.getProviderName()} after ${MAX_PAGES} pages, results are incomplete`);
-    return found;
+    throw new Error(
+      `Stopped paginating ${this.getProviderName()} after ${MAX_PAGES} pages. The result would be ` +
+        `incomplete, and a provider applies a full mutation, so ingesting it would delete every ` +
+        `resource beyond the last page read. Narrow the provider with 'locations' or a state filter.`,
+    );
   }
 }

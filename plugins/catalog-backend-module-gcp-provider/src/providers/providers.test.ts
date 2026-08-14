@@ -8,7 +8,10 @@ import { GcpEventarcEntityProvider } from './GcpEventarcEntityProvider';
 import { GcpVpcEntityProvider } from './GcpVpcEntityProvider';
 import { GcpServiceAccountEntityProvider } from './GcpServiceAccountEntityProvider';
 import { GcpWorkloadIdentityEntityProvider } from './GcpWorkloadIdentityEntityProvider';
-import { resetAssetIndex } from '../iam';
+import { GcpPubSubEntityProvider } from './GcpPubSubEntityProvider';
+import { GcpBucketEntityProvider } from './GcpBucketEntityProvider';
+import { GcpCloudSQLEntityProvider } from './GcpCloudSQLEntityProvider';
+import { GcpComputeInstanceEntityProvider } from './GcpComputeInstanceEntityProvider';
 
 // Every provider builds its client through `googleapis`, so the API surfaces are stubbed rather
 // than the HTTP layer: the thing under test is the mapping from API response to entity.
@@ -21,6 +24,9 @@ jest.mock('googleapis', () => ({
     iam: jest.fn(),
     container: jest.fn(),
     cloudasset: jest.fn(),
+    pubsub: jest.fn(),
+    storage: jest.fn(),
+    sqladmin: jest.fn(),
   },
 }));
 
@@ -43,9 +49,9 @@ function providerOf<T>(Provider: new (...args: never[]) => T, gcp: JsonObject): 
 }
 
 beforeEach(() => {
+  // Each provider builds its own asset index when the module does not hand one over, so there is
+  // no shared cache to drop between tests.
   jest.clearAllMocks();
-  // The IAM index is shared across providers by design, so it has to be dropped between tests.
-  resetAssetIndex();
 });
 
 describe('networking providers', () => {
@@ -188,7 +194,7 @@ describe('database providers', () => {
       labels: { env: 'prod' },
     });
     // The database name is prefixed with its instance, since it is only unique there.
-    expect(entities[1].spec).toMatchObject({ dependsOn: ['resource:default/orders'] });
+    expect(entities[1].spec).toMatchObject({ dependsOn: ['resource:gcp-my-project/orders'] });
     expect(entities[1].metadata.links?.[0].url).toBe(
       'https://console.cloud.google.com/spanner/instances/orders/databases/ledger/details/tables?project=my-project',
     );
@@ -230,8 +236,8 @@ describe('eventarc provider', () => {
       'Delivers google.cloud.pubsub.topic.v1.messagePublished to Cloud Run service orders-api',
     );
     expect(trigger.spec).toMatchObject({
-      dependsOn: ['resource:default/orders', 'resource:default/eventarc'],
-      dependencyOf: ['resource:default/orders-api'],
+      dependsOn: ['resource:gcp-my-project/orders', 'resource:gcp-my-project/eventarc'],
+      dependencyOf: ['resource:gcp-my-project/orders-api'],
     });
   });
 });
@@ -355,6 +361,38 @@ describe('the IAM access graph', () => {
     });
   });
 
+  it('switches the access edges off when memberTypes excludes service accounts', async () => {
+    mockAssetInventory();
+    (google.iam as unknown as jest.Mock).mockReturnValue({
+      projects: {
+        serviceAccounts: {
+          list: jest.fn().mockResolvedValue({
+            data: {
+              accounts: [
+                {
+                  name: 'projects/prod/serviceAccounts/auth-sa@prod.iam.gserviceaccount.com',
+                  email: 'auth-sa@prod.iam.gserviceaccount.com',
+                  projectId: 'prod',
+                },
+              ],
+            },
+          }),
+        },
+      },
+    });
+
+    const provider = providerOf(GcpServiceAccountEntityProvider, {
+      ...gcp,
+      // A service account is the only principal these edges are ever built for, so leaving the
+      // kind out of the list is what turns them off.
+      iam: { memberTypes: ['user', 'group'] },
+    });
+    const [account] = entitiesOf(await provider.getResources());
+
+    expect(account.metadata.name).toBe('auth-sa');
+    expect(account.spec?.dependsOn).toBeUndefined();
+  });
+
   it('honours the role denylist', async () => {
     mockAssetInventory();
     (google.iam as unknown as jest.Mock).mockReturnValue({
@@ -453,6 +491,368 @@ describe('the IAM access graph', () => {
     // The account is still ingested; only the graph is poorer.
     expect(account.metadata.name).toBe('auth-sa');
     expect(account.spec?.dependsOn).toBeUndefined();
+  });
+});
+
+describe('shared projects and schedule', () => {
+  function mockNetworks() {
+    (google.compute as unknown as jest.Mock).mockReturnValue({
+      networks: {
+        list: jest
+          .fn()
+          .mockImplementation(async ({ project }: { project: string }) => ({ data: { items: [{ name: project }] } })),
+      },
+    });
+  }
+
+  it('falls back to the shared projects and schedule', async () => {
+    mockNetworks();
+    const provider = providerOf(GcpVpcEntityProvider, {
+      projects: ['project-a', 'project-b'],
+      schedule,
+      vpc: {},
+    });
+    expect(entitiesOf(await provider.getResources()).map(entity => entity.metadata.name)).toEqual([
+      'project-a',
+      'project-b',
+    ]);
+  });
+
+  it('lets a provider narrow the shared project list', async () => {
+    mockNetworks();
+    const provider = providerOf(GcpVpcEntityProvider, {
+      projects: ['project-a', 'project-b'],
+      schedule,
+      vpc: { projects: ['project-b'] },
+    });
+    expect(entitiesOf(await provider.getResources()).map(entity => entity.metadata.name)).toEqual(['project-b']);
+  });
+
+  it('refuses to start when neither the provider nor the shared block names a schedule', () => {
+    expect(() => providerOf(GcpVpcEntityProvider, { projects: ['p'], vpc: {} })).toThrow(/No schedule/);
+  });
+
+  it('refuses to start when neither names any projects', () => {
+    // Validated in the constructor, like the schedule: a provider that can never ingest anything
+    // should stop the backend rather than log the same failure on a timer forever.
+    expect(() => providerOf(GcpVpcEntityProvider, { schedule, vpc: {} })).toThrow(/No projects/);
+  });
+});
+
+describe('service account refs', () => {
+  it('lands a default compute account in the project that uses it', async () => {
+    (google.compute as unknown as jest.Mock).mockReturnValue({
+      instances: {
+        aggregatedList: jest.fn().mockResolvedValue({
+          data: {
+            items: {
+              'zones/europe-west1-b': {
+                instances: [
+                  {
+                    name: 'worker',
+                    // The account every instance gets unless one is chosen: its email names the
+                    // project only by number, so the ref has to come from the enumerated project.
+                    serviceAccounts: [{ email: '123456789-compute@developer.gserviceaccount.com' }],
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      },
+    });
+
+    const provider = providerOf(GcpComputeInstanceEntityProvider, {
+      defaultNamespace: 'gcp-{{projectId}}',
+      instances: { projects: ['my-project'], schedule },
+    });
+    const [instance] = entitiesOf(await provider.getResources());
+
+    expect(instance.spec).toMatchObject({ dependsOn: ['resource:gcp-my-project/123456789-compute'] });
+  });
+});
+
+describe('pubsub provider', () => {
+  /** Topics and subscriptions, answered per project so a client ignoring one is visible. */
+  function mockPubSub(byProject: Record<string, { topics: string[]; subscriptions: [string, string][] }>) {
+    const listTopics = jest.fn().mockImplementation(async ({ project }: { project: string }) => ({
+      data: { topics: (byProject[project.replace('projects/', '')]?.topics ?? []).map(name => ({ name })) },
+    }));
+    const listSubscriptions = jest.fn().mockImplementation(async ({ project }: { project: string }) => ({
+      data: {
+        subscriptions: (byProject[project.replace('projects/', '')]?.subscriptions ?? []).map(([name, topic]) => ({
+          name,
+          topic,
+        })),
+      },
+    }));
+    (google.pubsub as unknown as jest.Mock).mockReturnValue({
+      projects: { topics: { list: listTopics }, subscriptions: { list: listSubscriptions } },
+    });
+    return { listTopics, listSubscriptions };
+  }
+
+  it('lists every configured project rather than the client default', async () => {
+    const { listTopics } = mockPubSub({
+      'project-a': { topics: ['projects/project-a/topics/orders'], subscriptions: [] },
+      'project-b': { topics: ['projects/project-b/topics/shipments'], subscriptions: [] },
+    });
+
+    const provider = providerOf(GcpPubSubEntityProvider, {
+      defaultNamespace: 'gcp-{{projectId}}',
+      pubsub: { projects: ['project-a', 'project-b'], schedule },
+    });
+    const entities = entitiesOf(await provider.getResources());
+
+    // Both projects are asked for by name, and each contributes its own topics.
+    expect(listTopics.mock.calls.map(([args]) => args.project)).toEqual(['projects/project-a', 'projects/project-b']);
+    expect(entities.map(entity => `${entity.metadata.namespace}/${entity.metadata.name}`)).toEqual([
+      'gcp-project-a/orders',
+      'gcp-project-b/shipments',
+    ]);
+  });
+
+  it('ties each subscription to the topic it reads, with prefixes stripped from both', async () => {
+    mockPubSub({
+      prod: {
+        topics: ['projects/prod/topics/myorg-orders'],
+        subscriptions: [['projects/prod/subscriptions/myorg-orders-worker', 'projects/prod/topics/myorg-orders']],
+      },
+    });
+
+    const provider = providerOf(GcpPubSubEntityProvider, {
+      pubsub: { projects: ['prod'], schedule, stripPrefixes: ['myorg-'] },
+    });
+    const [topic, subscription] = entitiesOf(await provider.getResources());
+
+    expect(topic.metadata.name).toBe('orders');
+    expect(topic.metadata.description).toBe('Pub/Sub topic with 1 subscription(s)');
+    // Suffixed, so a subscription named after its topic cannot take the topic's entity ref.
+    expect(subscription.metadata.name).toBe('orders-worker-sub');
+    // The console still knows the unstripped name, so it stays as the title.
+    expect(subscription.metadata.title).toBe('myorg-orders-worker');
+    expect(subscription.spec).toMatchObject({ dependsOn: ['resource:gcp-prod/orders'] });
+  });
+
+  it('gives a subscription named after its topic its own entity ref', async () => {
+    // Naming a subscription after the topic it reads is a common convention. Both are Resource
+    // entities in one namespace, so without distinct names the mutation carries the same ref twice
+    // and the catalog keeps whichever it saw last.
+    mockPubSub({
+      prod: {
+        topics: ['projects/prod/topics/orders'],
+        subscriptions: [['projects/prod/subscriptions/orders', 'projects/prod/topics/orders']],
+      },
+    });
+
+    const provider = providerOf(GcpPubSubEntityProvider, { pubsub: { projects: ['prod'], schedule } });
+    const entities = entitiesOf(await provider.getResources());
+    const refs = entities.map(entity => `${entity.metadata.namespace}/${entity.metadata.name}`);
+
+    expect(refs).toEqual([...new Set(refs)]);
+    expect(entities.map(entity => entity.metadata.name)).toEqual(['orders', 'orders-sub']);
+    // And the subscription depends on the topic rather than on itself.
+    expect(entities[1].spec).toMatchObject({ dependsOn: ['resource:gcp-prod/orders'] });
+  });
+
+  it('keeps a subscription whose topic has been deleted, without a dangling edge', async () => {
+    mockPubSub({
+      prod: { topics: [], subscriptions: [['projects/prod/subscriptions/orphan', '_deleted-topic_']] },
+    });
+
+    const provider = providerOf(GcpPubSubEntityProvider, { pubsub: { projects: ['prod'], schedule } });
+    const [subscription] = entitiesOf(await provider.getResources());
+
+    expect(subscription.metadata.name).toBe('orphan-sub');
+    expect(subscription.spec?.dependsOn).toBeUndefined();
+  });
+});
+
+describe('migrated rest providers', () => {
+  it('follows the bucket listing past its first page', async () => {
+    const list = jest
+      .fn()
+      .mockResolvedValueOnce({ data: { items: [{ name: 'first' }], nextPageToken: 'more' } })
+      .mockResolvedValueOnce({ data: { items: [{ name: 'second', location: 'EUROPE-WEST1' }] } });
+    (google.storage as unknown as jest.Mock).mockReturnValue({ buckets: { list } });
+
+    const provider = providerOf(GcpBucketEntityProvider, { storage: { projects: ['my-project'], schedule } });
+    const entities = entitiesOf(await provider.getResources());
+
+    expect(entities.map(entity => entity.metadata.name)).toEqual(['first', 'second']);
+    // Storage answers in upper case, and the region annotation is normalized like every other one.
+    expect(entities[1].metadata.annotations?.['cloud.google.com/region']).toBe('europe-west1');
+  });
+
+  it('follows the cloud sql listing past its first page', async () => {
+    const list = jest
+      .fn()
+      .mockResolvedValueOnce({ data: { items: [{ name: 'db-a', region: 'europe-west1' }], nextPageToken: 'more' } })
+      .mockResolvedValueOnce({ data: { items: [{ name: 'db-b', region: 'europe-west1' }] } });
+    (google.sqladmin as unknown as jest.Mock).mockReturnValue({ instances: { list } });
+
+    const provider = providerOf(GcpCloudSQLEntityProvider, { cloudsql: { projects: ['my-project'], schedule } });
+    expect(entitiesOf(await provider.getResources()).map(entity => entity.metadata.name)).toEqual(['db-a', 'db-b']);
+  });
+
+  it('treats a project it cannot read as empty, like every other rest provider', async () => {
+    (google.storage as unknown as jest.Mock).mockReturnValue({
+      buckets: {
+        list: jest.fn().mockImplementation(async ({ project }: { project: string }) => {
+          if (project === 'locked-down') {
+            throw Object.assign(new Error('does not have storage.buckets.list access'), { code: 403 });
+          }
+          return { data: { items: [{ name: 'reports' }] } };
+        }),
+      },
+    });
+
+    const provider = providerOf(GcpBucketEntityProvider, {
+      storage: { projects: ['locked-down', 'my-project'], schedule },
+    });
+    expect(entitiesOf(await provider.getResources()).map(entity => entity.metadata.name)).toEqual(['reports']);
+  });
+});
+
+describe('unusable names', () => {
+  it('skips a resource whose name normalizes to nothing, keeping the rest', async () => {
+    (google.compute as unknown as jest.Mock).mockReturnValue({
+      networks: {
+        // `___` has no character an entity name can be built from. Emitting `resource:ns/` would
+        // have the catalog reject it and fail the whole mutation with it.
+        list: jest.fn().mockResolvedValue({ data: { items: [{ name: '___' }, { name: 'prod' }] } }),
+      },
+    });
+
+    const provider = providerOf(GcpVpcEntityProvider, { vpc: { projects: ['my-project'], schedule } });
+    expect(entitiesOf(await provider.getResources()).map(entity => entity.metadata.name)).toEqual(['prod']);
+  });
+
+  it('drops a relation to an unusable name rather than the resource holding it', async () => {
+    (google.compute as unknown as jest.Mock).mockReturnValue({
+      networks: {
+        list: jest.fn().mockResolvedValue({
+          data: {
+            items: [
+              {
+                name: 'prod',
+                peerings: [
+                  { name: 'to-nowhere', network: 'https://www.googleapis.com/compute/v1/projects/p/global/networks/_' },
+                ],
+              },
+            ],
+          },
+        }),
+      },
+    });
+
+    const provider = providerOf(GcpVpcEntityProvider, { vpc: { projects: ['my-project'], schedule } });
+    const [network] = entitiesOf(await provider.getResources());
+
+    expect(network.metadata.name).toBe('prod');
+    expect(network.spec?.dependsOn).toBeUndefined();
+  });
+});
+
+describe('asset name annotation', () => {
+  function mockNetworksWithPolicy(assetName: string) {
+    (google.cloudasset as unknown as jest.Mock).mockReturnValue({
+      v1: {
+        searchAllIamPolicies: jest.fn().mockResolvedValue({
+          data: {
+            results: [
+              {
+                resource: assetName,
+                assetType: 'compute.googleapis.com/Network',
+                policy: {
+                  bindings: [
+                    { role: 'roles/compute.networkUser', members: ['serviceAccount:a@p.iam.gserviceaccount.com'] },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+      },
+    });
+    (google.compute as unknown as jest.Mock).mockReturnValue({
+      networks: {
+        list: jest.fn().mockResolvedValue({
+          data: {
+            items: [
+              { name: 'shared', selfLink: 'https://www.googleapis.com/compute/v1/projects/p/global/networks/shared' },
+            ],
+          },
+        }),
+      },
+    });
+  }
+
+  const withAnnotations = { iam: { annotateResources: true }, vpc: { projects: ['p'], schedule } };
+
+  it('records a derived asset name once the policy lookup has confirmed it', async () => {
+    mockNetworksWithPolicy('//compute.googleapis.com/projects/p/global/networks/shared');
+    const [network] = entitiesOf(await providerOf(GcpVpcEntityProvider, withAnnotations).getResources());
+
+    expect(network.metadata.annotations?.['cloud.google.com/asset-name']).toBe(
+      '//compute.googleapis.com/projects/p/global/networks/shared',
+    );
+    expect(network.metadata.annotations?.['cloud.google.com/iam-members']).toBe(
+      'roles/compute.networkUser=serviceAccount:a@p.iam.gserviceaccount.com',
+    );
+  });
+
+  it('records nothing when the derived name matched no asset', async () => {
+    // Several services name their assets by project *number*, which a self link does not carry, so
+    // a derived name is a guess. Publishing an unconfirmed one as fact is worse than none.
+    mockNetworksWithPolicy('//compute.googleapis.com/projects/849302847/global/networks/shared');
+    const [network] = entitiesOf(await providerOf(GcpVpcEntityProvider, withAnnotations).getResources());
+
+    expect(network.metadata.annotations).not.toHaveProperty('cloud.google.com/asset-name');
+    expect(network.metadata.annotations).not.toHaveProperty('cloud.google.com/iam-members');
+  });
+});
+
+describe('truncation', () => {
+  it('aborts rather than handing a short listing to a full mutation', async () => {
+    // Every page reports another one, so pagination runs into its cap. A short result here would
+    // be applied as "everything past the last page is gone".
+    (google.compute as unknown as jest.Mock).mockReturnValue({
+      networks: {
+        list: jest.fn().mockResolvedValue({ data: { items: [{ name: 'prod' }], nextPageToken: 'more' } }),
+      },
+    });
+
+    const provider = providerOf(GcpVpcEntityProvider, { vpc: { projects: ['my-project'], schedule } });
+    await expect(provider.getResources()).rejects.toThrow(/Stopped paginating/);
+  });
+
+  it('aborts when the IAM sweep stopped at its cap', async () => {
+    (google.cloudasset as unknown as jest.Mock).mockReturnValue({
+      v1: {
+        searchAllIamPolicies: jest.fn().mockResolvedValue({
+          data: {
+            results: [
+              {
+                resource: '//storage.googleapis.com/projects/_/buckets/reports',
+                assetType: 'storage.googleapis.com/Bucket',
+                policy: { bindings: [{ role: 'roles/storage.admin', members: ['serviceAccount:a@p.iam.gserviceaccount.com'] }] },
+              },
+            ],
+            nextPageToken: 'more',
+          },
+        }),
+      },
+    });
+    (google.iam as unknown as jest.Mock).mockReturnValue({
+      projects: { serviceAccounts: { list: jest.fn().mockResolvedValue({ data: { accounts: [] } }) } },
+    });
+
+    const provider = providerOf(GcpServiceAccountEntityProvider, {
+      'service-account': { projects: ['prod'], schedule },
+      iam: { maxBindingsPerProject: 1 },
+    });
+    await expect(provider.getResources()).rejects.toThrow(/truncated/);
   });
 });
 

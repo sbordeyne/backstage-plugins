@@ -22,7 +22,10 @@ export class GcpBinaryAuthorizationEntityProvider extends GcpRestEntityProvider<
     return google.binaryauthorization({ version: 'v1', auth: this.googleAuth });
   }
 
-  private policyToResource(policy: binaryauthorization_v1.Schema$Policy, project: string): DeferredEntity {
+  private policyToResource(
+    policy: binaryauthorization_v1.Schema$Policy,
+    project: string,
+  ): DeferredEntity | undefined {
     const rule = policy.defaultAdmissionRule?.evaluationMode ?? 'ALWAYS_ALLOW';
     const clusterRules = Object.keys(policy.clusterAdmissionRules ?? {});
 

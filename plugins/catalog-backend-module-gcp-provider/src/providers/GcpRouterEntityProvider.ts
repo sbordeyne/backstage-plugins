@@ -26,7 +26,7 @@ export class GcpRouterEntityProvider extends GcpRestEntityProvider<compute_v1.Co
     router: compute_v1.Schema$Router,
     region: string,
     project: string,
-    routerRef: string,
+    routerRef: string | undefined,
   ): DeferredEntity | undefined {
     if (!nat.name || !router.name) {
       return undefined;
@@ -89,7 +89,7 @@ export class GcpRouterEntityProvider extends GcpRestEntityProvider<compute_v1.Co
       .map(nat => this.natToResource(nat, router, region, project, routerRef))
       .filter(entity => entity !== undefined);
 
-    return [routerEntity, ...nats];
+    return routerEntity ? [routerEntity, ...nats] : [];
   }
 
   public async getResources(): Promise<DeferredEntity[]> {

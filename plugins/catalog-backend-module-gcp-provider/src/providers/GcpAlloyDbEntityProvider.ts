@@ -28,7 +28,7 @@ export class GcpAlloyDbEntityProvider extends GcpRestEntityProvider<alloydb_v1.A
     clusterId: string,
     region: string | undefined,
     project: string,
-    clusterRef: string,
+    clusterRef: string | undefined,
   ): DeferredEntity | undefined {
     const instanceId = lastSegment(instance.name);
     if (!instanceId) {
@@ -106,6 +106,9 @@ export class GcpAlloyDbEntityProvider extends GcpRestEntityProvider<alloydb_v1.A
       return { items: data.instances, nextPageToken: data.nextPageToken };
     });
 
+    if (!clusterEntity) {
+      return [];
+    }
     return [
       clusterEntity,
       ...instances

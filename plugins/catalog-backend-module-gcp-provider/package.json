@@ -34,13 +34,6 @@
     "@backstage/config": "backstage:^",
     "@backstage/plugin-catalog-node": "backstage:^",
     "@backstage/plugin-kubernetes-common": "backstage:^",
-    "@google-cloud/bigquery": "^9.0.2",
-    "@google-cloud/container": "^7.0.0",
-    "@google-cloud/iam": "^3.1.0",
-    "@google-cloud/pubsub": "^6.0.1",
-    "@google-cloud/secret-manager": "^7.0.0",
-    "@google-cloud/sql": "^0.27.0",
-    "@google-cloud/storage": "^7.22.0",
     "google-auth-library": "^11.0.2",
     "googleapis": "^174.0.1"
   },

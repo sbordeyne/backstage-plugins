@@ -64,7 +64,7 @@ export class GcpCloudFunctionEntityProvider extends GcpRestEntityProvider<cloudf
       {
         dependsOn: [
           ...(topic ? [this.pubsubTopicRef(topic, project)] : []),
-          ...(serviceAccount ? [this.serviceAccountRef(serviceAccount)] : []),
+          ...(serviceAccount ? [this.serviceAccountRef(serviceAccount, project)] : []),
           // Egress to anything private goes through a connector, which is an entity of its own.
           ...(fn.serviceConfig?.vpcConnector
             ? [

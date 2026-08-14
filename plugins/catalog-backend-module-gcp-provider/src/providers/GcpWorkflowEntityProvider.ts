@@ -53,7 +53,7 @@ export class GcpWorkflowEntityProvider extends GcpRestEntityProvider<workflows_v
           ...(workflow.revisionId ? { 'cloud.google.com/workflow-revision': workflow.revisionId } : {}),
         },
       },
-      { dependsOn: workflow.serviceAccount ? [this.serviceAccountRef(workflow.serviceAccount)] : [] },
+      { dependsOn: workflow.serviceAccount ? [this.serviceAccountRef(workflow.serviceAccount, project)] : [] },
     );
   }
 

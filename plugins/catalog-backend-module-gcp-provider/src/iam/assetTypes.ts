@@ -1,4 +1,5 @@
 import { lastSegment, segmentAfter } from '../utils';
+import { GcpNameStyle, RESOURCE_TYPES } from '../resourceTypes';
 
 /**
  * How an asset type reported by Cloud Asset Inventory maps onto an entity this module ingests.
@@ -20,120 +21,28 @@ export interface AssetTypeMapping {
    * region, Pub/Sub topics have prefixes stripped, and both are handled by the caller rather than
    * here, since they need provider configuration.
    */
-  nameStyle?: 'subnet' | 'pubsub' | 'serviceAccount';
+  nameStyle?: GcpNameStyle;
 }
 
 /**
- * One entry per ingested resource type. An asset type absent from here yields no relation, which is
- * the right outcome: pointing at an entity that is not ingested would dangle.
+ * One entry per ingested resource type that has an IAM policy of its own, derived from
+ * {@link RESOURCE_TYPES}.
+ *
+ * An asset type absent from here yields no relation, which is the right outcome: pointing at an
+ * entity that is not ingested would dangle. Because the table is derived, a resource type added
+ * without deciding whether it carries a policy cannot silently go missing from it.
  */
-export const ASSET_TYPES: Record<string, AssetTypeMapping> = {
-  'storage.googleapis.com/Bucket': { configKey: 'storage', provider: 'gcp-bucket', type: 'bucket' },
-  'bigquery.googleapis.com/Dataset': {
-    configKey: 'bigquery',
-    provider: 'gcp-bigquery',
-    type: 'bigquery-dataset',
-  },
-  'sqladmin.googleapis.com/Instance': {
-    configKey: 'cloudsql',
-    provider: 'gcp-cloudsql',
-    type: 'cloudsql-instance',
-  },
-  'pubsub.googleapis.com/Topic': {
-    configKey: 'pubsub',
-    provider: 'gcp-pubsub',
-    type: 'pubsub-topic',
-    nameStyle: 'pubsub',
-  },
-  'pubsub.googleapis.com/Subscription': {
-    configKey: 'pubsub',
-    provider: 'gcp-pubsub',
-    type: 'pubsub-subscription',
-    nameStyle: 'pubsub',
-  },
-  'secretmanager.googleapis.com/Secret': {
-    configKey: 'secretmanager',
-    provider: 'gcp-secret-manager',
-    type: 'secret',
-  },
-  'iam.googleapis.com/ServiceAccount': {
-    configKey: 'service-account',
-    provider: 'gcp-service-account',
-    type: 'google-service-account',
-    nameStyle: 'serviceAccount',
-  },
-  'container.googleapis.com/Cluster': {
-    configKey: 'clusters',
-    provider: 'gcp-clusters',
-    type: 'kubernetes-cluster',
-  },
-  'compute.googleapis.com/Network': { configKey: 'vpc', provider: 'gcp-vpc', type: 'vpc-network' },
-  'compute.googleapis.com/Subnetwork': {
-    configKey: 'subnets',
-    provider: 'gcp-subnets',
-    type: 'subnetwork',
-    nameStyle: 'subnet',
-  },
-  'compute.googleapis.com/Firewall': { configKey: 'firewall', provider: 'gcp-firewall', type: 'firewall-rule' },
-  'compute.googleapis.com/Router': { configKey: 'routers', provider: 'gcp-routers', type: 'cloud-router' },
-  'dns.googleapis.com/ManagedZone': { configKey: 'dns', provider: 'gcp-dns', type: 'dns-zone' },
-  'compute.googleapis.com/Instance': {
-    configKey: 'instances',
-    provider: 'gcp-instances',
-    type: 'compute-instance',
-  },
-  'compute.googleapis.com/InstanceGroupManager': {
-    configKey: 'instance-groups',
-    provider: 'gcp-instance-groups',
-    type: 'instance-group',
-  },
-  'compute.googleapis.com/Image': { configKey: 'images', provider: 'gcp-images', type: 'compute-image' },
-  'spanner.googleapis.com/Instance': { configKey: 'spanner', provider: 'gcp-spanner', type: 'spanner-instance' },
-  'redis.googleapis.com/Instance': { configKey: 'redis', provider: 'gcp-redis', type: 'redis-instance' },
-  'alloydb.googleapis.com/Cluster': { configKey: 'alloydb', provider: 'gcp-alloydb', type: 'alloydb-cluster' },
-  'bigtableadmin.googleapis.com/Instance': {
-    configKey: 'bigtable',
-    provider: 'gcp-bigtable',
-    type: 'bigtable-instance',
-  },
-  'firestore.googleapis.com/Database': {
-    configKey: 'firestore',
-    provider: 'gcp-firestore',
-    type: 'firestore-database',
-  },
-  'managedkafka.googleapis.com/Cluster': {
-    configKey: 'managedkafka',
-    provider: 'gcp-managedkafka',
-    type: 'kafka-cluster',
-  },
-  'eventarc.googleapis.com/Trigger': {
-    configKey: 'eventarc',
-    provider: 'gcp-eventarc',
-    type: 'eventarc-trigger',
-  },
-  'cloudtasks.googleapis.com/Queue': {
-    configKey: 'cloudtasks',
-    provider: 'gcp-cloudtasks',
-    type: 'cloud-tasks-queue',
-  },
-  'cloudscheduler.googleapis.com/Job': {
-    configKey: 'scheduler',
-    provider: 'gcp-scheduler',
-    type: 'scheduler-job',
-  },
-  'run.googleapis.com/Service': { configKey: 'run', provider: 'gcp-run', type: 'cloud-run-service' },
-  'run.googleapis.com/Job': { configKey: 'run', provider: 'gcp-run', type: 'cloud-run-job' },
-  'cloudfunctions.googleapis.com/CloudFunction': {
-    configKey: 'functions',
-    provider: 'gcp-functions',
-    type: 'cloud-function',
-  },
-  'artifactregistry.googleapis.com/Repository': {
-    configKey: 'artifactregistry',
-    provider: 'gcp-artifactregistry',
-    type: 'artifact-repository',
-  },
-};
+export const ASSET_TYPES: Record<string, AssetTypeMapping> = Object.fromEntries(
+  RESOURCE_TYPES.filter(resource => resource.assetType).map(resource => [
+    resource.assetType as string,
+    {
+      configKey: resource.configKey,
+      provider: resource.provider,
+      type: resource.type,
+      ...(resource.nameStyle ? { nameStyle: resource.nameStyle } : {}),
+    },
+  ]),
+);
 
 /** What an asset name says about the resource behind it, before entity naming is applied. */
 export interface ParsedAsset {

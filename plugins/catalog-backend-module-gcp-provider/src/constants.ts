@@ -10,21 +10,49 @@ export const ANNOTATION_GCP_SELF_LINK = 'cloud.google.com/self-link';
 
 /**
  * Label read off a GCP resource to find the entity that owns it, unless `ownerLabel` says
- * otherwise. See {@link ownerLabelKeys} for why the GCP-legal spelling matches too.
+ * otherwise.
+ *
+ * Spelled the way GCP will actually accept it. A label key has to match {@link GCP_LABEL_KEY} —
+ * start with a lowercase letter, then lowercase letters, digits, dashes and underscores — so the
+ * Backstage-style `backstage.io/owner-ref` cannot be set on a resource at all: the API rejects the
+ * dots and the slash. The underscore spelling is what a real resource carries.
  */
-export const DEFAULT_OWNER_LABEL = 'backstage.io/owner-ref';
+export const DEFAULT_OWNER_LABEL = 'backstage_io_owner-ref';
 
 /**
  * Label read off a GCP resource to find the system it belongs to, unless `systemLabel` says
- * otherwise. Matched under the same spellings as {@link DEFAULT_OWNER_LABEL}.
+ * otherwise. Spelled GCP-legally for the same reason as {@link DEFAULT_OWNER_LABEL}.
  */
-export const DEFAULT_SYSTEM_LABEL = 'backstage.io/system-ref';
+export const DEFAULT_SYSTEM_LABEL = 'backstage_io_system-ref';
 
 /**
- * Namespace template used when neither the provider nor `catalog.providers.gcp` sets one: entities
- * land in the default namespace, which is what a catalog without any namespacing expects.
+ * What GCP accepts as a label key: 1–63 characters, opening with a lowercase letter, then lowercase
+ * letters, digits, dashes and underscores.
+ *
+ * Values are restricted the same way except that they may also be empty, which is why they are
+ * checked separately where it matters.
  */
-export const DEFAULT_NAMESPACE_TEMPLATE = 'default';
+export const GCP_LABEL_KEY = /^[a-z][a-z0-9_-]{0,62}$/;
+
+/**
+ * Namespace template used when neither the provider nor `catalog.providers.gcp` sets one.
+ *
+ * Entity names come from GCP, which scopes most of them to a project rather than globally: every
+ * project has a `default` VPC network and subnet, and firewall rules, service accounts and secrets
+ * repeat across projects by convention. Putting them all in one namespace gives two projects the
+ * same entity ref, and a `full` mutation carrying the same ref twice keeps one resource and loses
+ * the other. Namespacing by project is what makes ingesting more than one project work at all.
+ */
+export const DEFAULT_NAMESPACE_TEMPLATE = 'gcp-{{projectId}}';
+
+/**
+ * Namespace an entity lands in when its template cannot be rendered — an unknown variable, or a
+ * result that normalizes to nothing.
+ *
+ * Deliberately not a template: it is the answer to "this configuration is broken", so it has to be
+ * a namespace already rather than something that could fail to render in turn.
+ */
+export const FALLBACK_NAMESPACE = 'default';
 
 /** Names of the VPC peerings configured on a network, which have no resources of their own. */
 export const ANNOTATION_GCP_PEERINGS = 'cloud.google.com/vpc-peerings';

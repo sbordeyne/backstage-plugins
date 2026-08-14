@@ -1,3 +1,5 @@
+import { serviceAccountProject } from '../utils';
+
 /**
  * An IAM member, parsed into the thing it actually identifies.
  *
@@ -59,10 +61,9 @@ export function parseMember(member: string): GcpIamMember {
       const [, pool, namespace, ksa] = workloadIdentity;
       return { kind: 'workloadIdentity', pool, poolProject: poolProjectOf(pool), namespace, ksa };
     }
-    // `auth-sa@my-project.iam.gserviceaccount.com`, or `my-project.svc.id.goog` style domains for
-    // the identities that are not accounts at all.
-    const domain = value.split('@')[1] ?? '';
-    return { kind: 'serviceAccount', email: value, projectId: domain.split('.')[0] ?? '' };
+    // `auth-sa@my-project.iam.gserviceaccount.com` names its project; the default compute and
+    // service-agent accounts do not, and report an empty one rather than a guessed one.
+    return { kind: 'serviceAccount', email: value, projectId: serviceAccountProject(value) ?? '' };
   }
 
   if (prefix === 'user' || prefix === 'group' || prefix === 'domain') {

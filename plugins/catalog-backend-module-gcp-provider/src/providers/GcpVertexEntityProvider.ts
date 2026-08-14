@@ -173,7 +173,7 @@ export class GcpWorkbenchEntityProvider extends GcpRestEntityProvider<notebooks_
         dependsOn: (instance.gceSetup?.serviceAccounts ?? [])
           .map(account => account.email)
           .filter((email): email is string => Boolean(email))
-          .map(email => this.serviceAccountRef(email)),
+          .map(email => this.serviceAccountRef(email, project)),
       },
     );
   }

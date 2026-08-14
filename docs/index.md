@@ -6,15 +6,15 @@ repository except the shared packages a plugin pair uses between its own halves.
 
 ## What is here
 
-| Plugin                                                        | Kind                   | What it does                                                                                     |
-| ------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| [GCP catalog provider](plugins/gcp-catalog-provider.md)       | catalog backend module | Ingests GCP resources — BigQuery, GCS, Cloud SQL, Pub/Sub, Secret Manager, service accounts, GKE |
-| [Bruno](plugins/bruno.md)                                     | frontend + backend     | Shows Bruno API test runs, synced from a GCS bucket, on the owning entity                        |
-| [Secure Share](plugins/secure-share.md)                       | frontend + backend     | End-to-end encrypted, short-lived sharing of credentials, text and files                         |
-| [Integrated repositories](plugins/integrated-repositories.md) | frontend               | Tracks how much of a GitHub organization the catalog actually covers                             |
-| [Tech Insights: Jira](plugins/tech-insights-jira.md)          | tech-insights module   | Per-component Jira health facts: bugs, blockers, tech debt, cycle time                           |
-| [Tech Insights: stack](plugins/tech-insights-stack.md)        | tech-insights module   | Detects build tool, language version, framework and metrics library from GitHub                  |
-| [Go template playground](plugins/gotemplate-playground.md)    | toolbox module         | Renders Go templates against the sprig, sprout, helm and external-secrets function sets          |
+| Plugin                                                        | Kind                   | What it does                                                                            |
+| ------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------- |
+| [GCP catalog provider](plugins/gcp-catalog-provider.md)       | catalog backend module | Ingests 58 kinds of GCP resource, and the IAM edges between them, as a dependency graph |
+| [Bruno](plugins/bruno.md)                                     | frontend + backend     | Shows Bruno API test runs, synced from a GCS bucket, on the owning entity               |
+| [Secure Share](plugins/secure-share.md)                       | frontend + backend     | End-to-end encrypted, short-lived sharing of credentials, text and files                |
+| [Integrated repositories](plugins/integrated-repositories.md) | frontend               | Tracks how much of a GitHub organization the catalog actually covers                    |
+| [Tech Insights: Jira](plugins/tech-insights-jira.md)          | tech-insights module   | Per-component Jira health facts: bugs, blockers, tech debt, cycle time                  |
+| [Tech Insights: stack](plugins/tech-insights-stack.md)        | tech-insights module   | Detects build tool, language version, framework and metrics library from GitHub         |
+| [Go template playground](plugins/gotemplate-playground.md)    | toolbox module         | Renders Go templates against the sprig, sprout, helm and external-secrets function sets |
 
 Two cross-cutting guides cover the setup that is shared between them:
 

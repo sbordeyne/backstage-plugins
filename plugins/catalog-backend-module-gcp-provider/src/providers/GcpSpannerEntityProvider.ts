@@ -28,7 +28,7 @@ export class GcpSpannerEntityProvider extends GcpRestEntityProvider<spanner_v1.S
     instanceId: string,
     region: string | undefined,
     project: string,
-    instanceRef: string,
+    instanceRef: string | undefined,
   ): DeferredEntity | undefined {
     const databaseId = lastSegment(database.name);
     if (!databaseId) {
@@ -99,6 +99,9 @@ export class GcpSpannerEntityProvider extends GcpRestEntityProvider<spanner_v1.S
       return { items: data.databases, nextPageToken: data.nextPageToken };
     });
 
+    if (!instanceEntity) {
+      return [];
+    }
     return [
       instanceEntity,
       ...databases

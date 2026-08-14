@@ -1,9 +1,9 @@
-import { GcpEntityProviderBase } from './GcpEntityProviderBase';
-import * as storage from '@google-cloud/storage';
 import { DeferredEntity } from '@backstage/plugin-catalog-node';
-import { ANNOTATION_LOCATION, ANNOTATION_ORIGIN_LOCATION } from '@backstage/catalog-model';
+import { google, storage_v1 } from 'googleapis';
+import { GcpRestEntityProvider } from './GcpRestEntityProvider';
 
-export class GcpBucketEntityProvider extends GcpEntityProviderBase<storage.Storage> {
+/** Cloud Storage buckets. */
+export class GcpBucketEntityProvider extends GcpRestEntityProvider<storage_v1.Storage> {
   getProviderName(): string {
     return 'gcp-bucket';
   }
@@ -12,68 +12,45 @@ export class GcpBucketEntityProvider extends GcpEntityProviderBase<storage.Stora
     return 'storage';
   }
 
-  getClient(): storage.Storage {
-    return new storage.Storage({ credentials: this.credentials });
+  getClient(): storage_v1.Storage {
+    return google.storage({ version: 'v1', auth: this.googleAuth });
   }
 
-  private bucketToResource(bucket: storage.Bucket, project: string): DeferredEntity | undefined {
-    if (!bucket.metadata || !bucket.metadata.name) {
+  private bucketToResource(bucket: storage_v1.Schema$Bucket, project: string): DeferredEntity | undefined {
+    if (!bucket.name) {
       return undefined;
     }
-    const region = bucket.metadata.location ?? this.defaultRegion;
-    const location = `${this.getProviderName()}:${region ?? 'unknown-region'}`;
-    const labels = bucket.metadata.labels;
+    // Storage reports locations in upper case (`EUROPE-WEST1`, `US`); every other provider and the
+    // `locations` filter work in lower case.
+    const region = bucket.location?.toLocaleLowerCase();
+    if (!this.includesLocation(region)) {
+      return undefined;
+    }
+    const storageClass = bucket.storageClass ?? 'Standard';
 
-    const deferredEntity: DeferredEntity = {
-      entity: {
-        apiVersion: 'backstage.io/v1alpha1',
-        kind: 'Resource',
-        metadata: this.metadataOf({
-          name: bucket.name,
-          projectId: bucket.projectId ?? project,
-          type: 'bucket',
-          region,
-          selfLink: bucket.metadata.selfLink,
-          labels,
-          summary: `${bucket.metadata.storageClass ?? 'Standard'} storage bucket in ${
-            region ?? 'an unreported location'
-          }`,
-          consolePath: `storage/browser/${bucket.name}`,
-          logFilter: `resource.type="gcs_bucket" resource.labels.bucket_name="${bucket.name}"`,
-          tagValues: [bucket.metadata.storageClass, bucket.metadata.locationType],
-          annotations: {
-            [ANNOTATION_LOCATION]: location,
-            [ANNOTATION_ORIGIN_LOCATION]: location,
-          },
-        }),
-        spec: {
-          type: 'bucket',
-          owner: this.ownerOf(labels),
-          ...this.systemOf(labels),
-        },
-      },
-    };
-
-    return deferredEntity;
+    return this.toEntity({
+      name: bucket.name,
+      projectId: project,
+      type: 'bucket',
+      region,
+      selfLink: bucket.selfLink,
+      labels: bucket.labels,
+      summary: `${storageClass} storage bucket in ${region ?? 'an unreported location'}`,
+      consolePath: `storage/browser/${bucket.name}`,
+      logFilter: `resource.type="gcs_bucket" resource.labels.bucket_name="${bucket.name}"`,
+      tagValues: [storageClass, bucket.locationType],
+      // Cloud Asset Inventory names a bucket by itself, since bucket names are globally unique.
+      assetName: `//storage.googleapis.com/${bucket.name}`,
+    });
   }
 
   public async getResources(): Promise<DeferredEntity[]> {
-    const buckets = await Promise.all(
-      this.config.getStringArray('projects').map(async project => {
-        this.logger.info(`Discovering buckets in project: ${project}`);
-        const [projectBuckets] = await this.client.getBuckets({
-          autoPaginate: true,
-          project: project,
-        });
-        this.logger.info(`Found ${projectBuckets.length} buckets in project: ${project}`);
-        return (
-          projectBuckets
-            .filter(bucket => bucket !== undefined)
-            .map(bucket => this.bucketToResource(bucket, project))
-            .filter(bucket => bucket !== undefined) ?? []
-        );
-      }),
-    );
-    return buckets.flat();
+    return this.forEachProject(async project => {
+      const buckets = await this.listAll<storage_v1.Schema$Bucket>(async pageToken => {
+        const { data } = await this.client.buckets.list({ project, pageToken });
+        return { items: data.items, nextPageToken: data.nextPageToken };
+      });
+      return buckets.map(bucket => this.bucketToResource(bucket, project)).filter(entity => entity !== undefined);
+    });
   }
 }

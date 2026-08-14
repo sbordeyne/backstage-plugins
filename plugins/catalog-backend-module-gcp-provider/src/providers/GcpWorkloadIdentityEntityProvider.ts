@@ -56,7 +56,9 @@ export class GcpWorkloadIdentityEntityProvider extends GcpRestEntityProvider<con
         region: cluster.location ?? undefined,
         name: cluster.name,
       });
-      byPool.set(pool, [...(byPool.get(pool) ?? []), ref]);
+      if (ref) {
+        byPool.set(pool, [...(byPool.get(pool) ?? []), ref]);
+      }
     }
     return byPool;
   }
@@ -65,10 +67,14 @@ export class GcpWorkloadIdentityEntityProvider extends GcpRestEntityProvider<con
     key: string,
     bindings: GcpWorkloadIdentityBinding[],
     clusterRefs: Map<string, string[]>,
-  ): DeferredEntity {
+  ): DeferredEntity | undefined {
     const [first] = bindings;
     const accounts = [...new Set(bindings.map(binding => binding.gsaEmail))];
-    const gsaRefs = accounts.map(email => this.serviceAccountRef(email));
+    // The binding names the project of the Google account, which is the answer for the agent
+    // accounts whose email does not carry one.
+    const gsaRefs = [
+      ...new Set(bindings.map(binding => this.serviceAccountRef(binding.gsaEmail, binding.gsaProject))),
+    ];
 
     return this.toEntity(
       {
@@ -108,7 +114,9 @@ export class GcpWorkloadIdentityEntityProvider extends GcpRestEntityProvider<con
         byAccount.set(key, [...(byAccount.get(key) ?? []), binding]);
       }
 
-      return [...byAccount.entries()].map(([key, bindings]) => this.toKsaEntity(key, bindings, clusterRefs));
+      return [...byAccount.entries()]
+        .map(([key, bindings]) => this.toKsaEntity(key, bindings, clusterRefs))
+        .filter(entity => entity !== undefined);
     });
   }
 }

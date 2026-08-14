@@ -28,7 +28,7 @@ export class GcpKmsEntityProvider extends GcpRestEntityProvider<cloudkms_v1.Clou
     ringId: string,
     region: string | undefined,
     project: string,
-    ringRef: string,
+    ringRef: string | undefined,
   ): DeferredEntity | undefined {
     const keyId = lastSegment(key.name);
     if (!keyId) {
@@ -96,6 +96,9 @@ export class GcpKmsEntityProvider extends GcpRestEntityProvider<cloudkms_v1.Clou
       assetName: `//cloudkms.googleapis.com/${ring.name}`,
     });
 
+    if (!ringEntity) {
+      return [];
+    }
     return [
       ringEntity,
       ...keys

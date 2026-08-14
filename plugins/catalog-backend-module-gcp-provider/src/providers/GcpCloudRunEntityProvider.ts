@@ -57,7 +57,7 @@ export class GcpCloudRunEntityProvider extends GcpRestEntityProvider<run_v2.Run>
       },
       {
         dependsOn: [
-          ...(serviceAccount ? [this.serviceAccountRef(serviceAccount)] : []),
+          ...(serviceAccount ? [this.serviceAccountRef(serviceAccount, project)] : []),
           // Anything with a private address is reached through a connector, which makes it the
           // hop between this service and the VPC entities.
           ...this.connectorRefs(service.template?.vpcAccess, region, project),
@@ -71,7 +71,7 @@ export class GcpCloudRunEntityProvider extends GcpRestEntityProvider<run_v2.Run>
     vpcAccess: run_v2.Schema$GoogleCloudRunV2VpcAccess | undefined,
     region: string | undefined,
     project: string,
-  ): string[] {
+  ): (string | undefined)[] {
     const connector = vpcAccess?.connector;
     if (!connector) {
       return [];
@@ -119,7 +119,7 @@ export class GcpCloudRunEntityProvider extends GcpRestEntityProvider<run_v2.Run>
       },
       {
         dependsOn: [
-          ...(serviceAccount ? [this.serviceAccountRef(serviceAccount)] : []),
+          ...(serviceAccount ? [this.serviceAccountRef(serviceAccount, project)] : []),
           ...this.connectorRefs(job.template?.template?.vpcAccess, region, project),
         ],
       },

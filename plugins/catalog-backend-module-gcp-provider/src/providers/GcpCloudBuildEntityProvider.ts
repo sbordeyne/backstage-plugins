@@ -64,7 +64,7 @@ export class GcpCloudBuildEntityProvider extends GcpRestEntityProvider<cloudbuil
           ...(trigger.filename ? { 'cloud.google.com/build-config': trigger.filename } : {}),
         },
       },
-      { dependsOn: trigger.serviceAccount ? [this.serviceAccountRef(trigger.serviceAccount)] : [] },
+      { dependsOn: trigger.serviceAccount ? [this.serviceAccountRef(trigger.serviceAccount, project)] : [] },
     );
   }
 
