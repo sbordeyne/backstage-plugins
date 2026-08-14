@@ -72,9 +72,7 @@ export class GcpWorkloadIdentityEntityProvider extends GcpRestEntityProvider<con
     const accounts = [...new Set(bindings.map(binding => binding.gsaEmail))];
     // The binding names the project of the Google account, which is the answer for the agent
     // accounts whose email does not carry one.
-    const gsaRefs = [
-      ...new Set(bindings.map(binding => this.serviceAccountRef(binding.gsaEmail, binding.gsaProject))),
-    ];
+    const gsaRefs = [...new Set(bindings.map(binding => this.serviceAccountRef(binding.gsaEmail, binding.gsaProject)))];
 
     return this.toEntity(
       {

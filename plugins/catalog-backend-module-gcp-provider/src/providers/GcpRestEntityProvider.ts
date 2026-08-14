@@ -96,8 +96,9 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
    * narrowing one resource type to a single project stays a local edit.
    */
   protected get projects(): string[] {
-    const projects = this.once('projects', () =>
-      this.config.getOptionalStringArray('projects') ?? this.gcpConfig.getOptionalStringArray('projects'),
+    const projects = this.once(
+      'projects',
+      () => this.config.getOptionalStringArray('projects') ?? this.gcpConfig.getOptionalStringArray('projects'),
     );
     if (!projects?.length) {
       throw new Error(
@@ -241,9 +242,7 @@ export abstract class GcpRestEntityProvider<TApi> extends GcpEntityProviderBase<
     return assetName ? this.policiesByProject.get(projectId)?.membersByAsset.get(assetName) : undefined;
   }
 
-  private iamMembersAnnotation(
-    bindings: { role: string; members: string[] }[] | undefined,
-  ): Record<string, string> {
+  private iamMembersAnnotation(bindings: { role: string; members: string[] }[] | undefined): Record<string, string> {
     if (!bindings?.length) {
       return {};
     }

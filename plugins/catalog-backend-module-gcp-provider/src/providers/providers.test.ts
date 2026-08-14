@@ -836,7 +836,9 @@ describe('truncation', () => {
               {
                 resource: '//storage.googleapis.com/projects/_/buckets/reports',
                 assetType: 'storage.googleapis.com/Bucket',
-                policy: { bindings: [{ role: 'roles/storage.admin', members: ['serviceAccount:a@p.iam.gserviceaccount.com'] }] },
+                policy: {
+                  bindings: [{ role: 'roles/storage.admin', members: ['serviceAccount:a@p.iam.gserviceaccount.com'] }],
+                },
               },
             ],
             nextPageToken: 'more',

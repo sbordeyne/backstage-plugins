@@ -381,10 +381,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    * The namespace comes from that provider's own config block, so a relation still resolves when
    * the two providers are namespaced differently.
    */
-  protected resourceRef(
-    providerConfigKey: string,
-    context: GcpResourceContext & { name: string },
-  ): string | undefined {
+  protected resourceRef(providerConfigKey: string, context: GcpResourceContext & { name: string }): string | undefined {
     return this.refs.resourceRef(providerConfigKey, context);
   }
 
@@ -602,11 +599,7 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
   }
 
   /** Ref of the entity a Cloud Run service is ingested as. */
-  protected cloudRunServiceRef(
-    service: string,
-    region: string | undefined,
-    projectId: string,
-  ): string | undefined {
+  protected cloudRunServiceRef(service: string, region: string | undefined, projectId: string): string | undefined {
     return this.resourceRef('run', {
       projectId,
       type: 'cloud-run-service',
@@ -658,7 +651,9 @@ export abstract class GcpEntityProviderBase<TClient> implements EntityProvider {
    */
   protected get generateDescriptions(): boolean {
     return this.once('generateDescriptions', () => {
-      return this.config.getOptionalBoolean('descriptions') ?? this.gcpConfig.getOptionalBoolean('descriptions') ?? true;
+      return (
+        this.config.getOptionalBoolean('descriptions') ?? this.gcpConfig.getOptionalBoolean('descriptions') ?? true
+      );
     });
   }
 
