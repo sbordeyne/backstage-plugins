@@ -19,6 +19,9 @@ interface MockRepository {
   /** Resolved catalog-info.yaml paths; empty means nothing was ingested. */
   paths: string[];
   hasRootCatalogInfo: boolean;
+  isArchived?: boolean;
+  isFork?: boolean;
+  hasDefaultBranch?: boolean;
 }
 
 const MOCK_REPOSITORIES: MockRepository[] = [
@@ -57,7 +60,13 @@ const MOCK_REPOSITORIES: MockRepository[] = [
     paths: ['images/catalog-info.yaml'],
     hasRootCatalogInfo: false,
   },
-  { repo: 'ios', language: 'Swift', pushedAt: '2025-11-02T09:00:00Z', paths: [], hasRootCatalogInfo: false },
+  {
+    repo: 'ios',
+    language: 'Swift',
+    pushedAt: '2025-11-02T09:00:00Z',
+    paths: [],
+    hasRootCatalogInfo: false,
+  },
 ];
 
 function globTarget(repo: string): string {
@@ -107,6 +116,10 @@ const GITHUB_REPOSITORIES: GithubRepositoryInfo[] = MOCK_REPOSITORIES.map(mock =
   pushedAt: mock.pushedAt,
   primaryLanguage: mock.language,
   hasRootCatalogInfo: mock.hasRootCatalogInfo,
+  owner: ORG,
+  isArchived: mock.isArchived ?? false,
+  isFork: mock.isFork ?? false,
+  hasDefaultBranch: mock.hasDefaultBranch ?? true,
 }));
 
 function isLocationQuery(filter: unknown): boolean {
