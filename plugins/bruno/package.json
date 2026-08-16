@@ -1,6 +1,6 @@
 {
   "name": "@sbordeyne/backstage-plugin-bruno",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Backstage frontend plugin surfacing Bruno collection runs on the entity that owns them, with a pass/fail history chart and per-request results.",
   "license": "Apache-2.0",
   "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/bruno/",
@@ -43,9 +43,11 @@
   },
   "dependencies": {
     "@backstage/catalog-model": "backstage:^",
+    "@backstage/core-compat-api": "backstage:^",
     "@backstage/core-components": "backstage:^",
     "@backstage/core-plugin-api": "backstage:^",
     "@backstage/errors": "backstage:^",
+    "@backstage/frontend-plugin-api": "backstage:^",
     "@backstage/plugin-catalog-react": "backstage:^",
     "@backstage/theme": "backstage:^",
     "@material-ui/core": "^4.9.13",
@@ -75,5 +77,20 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./alpha": "./src/alpha.tsx",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "alpha": [
+        "src/alpha.tsx"
+      ],
+      "package.json": [
+        "package.json"
+      ]
+    }
+  }
 }
