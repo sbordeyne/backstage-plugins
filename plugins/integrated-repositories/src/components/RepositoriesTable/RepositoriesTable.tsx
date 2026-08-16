@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Button,
+  ButtonLink,
   Cell,
   CellText,
   ColumnConfig,
@@ -14,11 +15,25 @@ import {
   Text,
   useTable,
 } from '@backstage/ui';
-import { isCovered, isLanguageSelected } from '../../lib/coverage';
-import { COVERAGE_FILTER_LABELS, formatDate, STATUS_LABELS } from '../../lib/labels';
+import { isCovered } from '../../lib/coverage';
+import {
+  ALL_STATUS_FILTERS,
+  AWAITING_SYNC_LABEL,
+  formatDate,
+  REPOSITORY_KIND_LABELS,
+  STATUS_FILTER_LABELS,
+  STATUS_LABELS,
+} from '../../lib/labels';
+import { isInPerimeter } from '../../lib/perimeter';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
+import { IntegrateTemplateLink, useIntegrateTemplateLink } from '../../hooks/useIntegrateTemplateLink';
 import { IntegrationStatusLabel } from '../IntegrationStatusLabel';
-import { CoverageFilter, IntegrationStatus, RepositoryRow } from '../../types';
+import { Perimeter, RepositoryKind, RepositoryRow, StatusFilter } from '../../types';
+import AddCircleOutline from '@material-ui/icons/AddCircleOutline';
+import ArchiveOutlined from '@material-ui/icons/ArchiveOutlined';
+import CallSplit from '@material-ui/icons/CallSplit';
+import RemoveCircleOutline from '@material-ui/icons/RemoveCircleOutline';
+import ScheduleOutlined from '@material-ui/icons/ScheduleOutlined';
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 150;
@@ -26,33 +41,19 @@ const SEARCH_DEBOUNCE_MS = 150;
 /** `useTable` identifies rows by `id`; repository names are unique within an organization. */
 interface RepositoryTableItem extends RepositoryRow {
   id: string;
-  /** False when the row falls outside the selected languages and is only shown for context. */
-  inSelectedLanguages: boolean;
+  /** False when the row falls outside the perimeter and is only shown for context. */
+  inPerimeter: boolean;
 }
 
 interface RepositoryTableFilter {
-  coverage: CoverageFilter;
-  status: IntegrationStatus | 'all';
+  status: StatusFilter;
 }
 
-const DEFAULT_FILTER: RepositoryTableFilter = { coverage: 'all', status: 'all' };
+const DEFAULT_FILTER: RepositoryTableFilter = { status: 'all' };
 
 const NO_ROWS: RepositoryTableItem[] = [];
 
-const COVERAGE_OPTIONS: { id: CoverageFilter; label: string }[] = [
-  { id: 'all', label: COVERAGE_FILTER_LABELS.all },
-  { id: 'integrated', label: COVERAGE_FILTER_LABELS.integrated },
-  { id: 'not-integrated', label: COVERAGE_FILTER_LABELS['not-integrated'] },
-];
-
-const STATUS_OPTIONS: { id: IntegrationStatus | 'all'; label: string }[] = [
-  { id: 'all', label: 'Any status' },
-  { id: 'integrated', label: STATUS_LABELS.integrated },
-  { id: 'integrated-nested', label: STATUS_LABELS['integrated-nested'] },
-  { id: 'drift', label: STATUS_LABELS.drift },
-  { id: 'not-integrated', label: STATUS_LABELS['not-integrated'] },
-  { id: 'unknown', label: STATUS_LABELS.unknown },
-];
+const STATUS_OPTIONS = ALL_STATUS_FILTERS.map(id => ({ id, label: STATUS_FILTER_LABELS[id] }));
 
 function describeVisibility(isPrivate: boolean | undefined): string {
   if (isPrivate === undefined) {
@@ -61,6 +62,57 @@ function describeVisibility(isPrivate: boolean | undefined): string {
   return isPrivate ? 'Private' : 'Public';
 }
 
+type KindIcon = typeof ArchiveOutlined;
+
+/**
+ * Active carries no icon on purpose: it is the overwhelming majority, and a mark on almost every row
+ * is noise rather than signal. An empty cell reads as "nothing to say about this one".
+ */
+const KIND_ICONS: Partial<Record<RepositoryKind, KindIcon>> = {
+  archived: ArchiveOutlined,
+  fork: CallSplit,
+  'no-default-branch': RemoveCircleOutline,
+};
+
+/**
+ * What this repository is, as words. Also the accessible name of the icon that stands for it.
+ *
+ * A repository with no skip reason and no `Location` is not skipped at all — it was created since the
+ * last provider run. That is a genuine gap rather than an exclusion, which is why it is named here
+ * but never offered as a perimeter control.
+ */
+function describeKind(item: RepositoryTableItem): string {
+  if (item.providerSkips.length > 0) {
+    return item.providerSkips.map(skip => REPOSITORY_KIND_LABELS[skip]).join(', ');
+  }
+  return item.isTracked ? REPOSITORY_KIND_LABELS.active : AWAITING_SYNC_LABEL;
+}
+
+/**
+ * The kind as icons, in a column narrow enough to cost nothing on the rows that carry no icon —
+ * which is most of them. The label is on the `title`, so hovering and screen readers both get it.
+ */
+function KindCell({ item }: { item: RepositoryTableItem }): JSX.Element {
+  const label = describeKind(item);
+  const icons = item.providerSkips.map(skip => KIND_ICONS[skip]).filter((icon): icon is KindIcon => icon !== undefined);
+
+  // Awaiting sync is not a skip, so it has no entry in the map, but it is worth a mark of its own.
+  if (!item.isTracked && icons.length === 0) {
+    icons.push(ScheduleOutlined);
+  }
+
+  return (
+    <Cell>
+      <span title={label} aria-label={label} style={{ display: 'inline-flex', gap: 'var(--bui-space-1)' }}>
+        {icons.map((Icon, index) => (
+          <Icon key={index} fontSize="small" />
+        ))}
+      </span>
+    </Cell>
+  );
+}
+
+/** The onboarding column is not sortable, so it never reaches this function and needs no case. */
 function compareByColumn(column: string, a: RepositoryTableItem, b: RepositoryTableItem): number {
   switch (column) {
     case 'status':
@@ -75,6 +127,8 @@ function compareByColumn(column: string, a: RepositoryTableItem, b: RepositoryTa
       return (a.pushedAt ?? '').localeCompare(b.pushedAt ?? '');
     case 'visibility':
       return describeVisibility(a.isPrivate).localeCompare(describeVisibility(b.isPrivate));
+    case 'kind':
+      return describeKind(a).localeCompare(describeKind(b));
     default:
       return a.repo.localeCompare(b.repo);
   }
@@ -85,20 +139,25 @@ function sortItems(items: RepositoryTableItem[], sort: SortDescriptor): Reposito
   return [...items].sort((a, b) => direction * compareByColumn(String(sort.column), a, b));
 }
 
+/** One control, both granularities: the binary grouping IDP-47 asks for, and each single status. */
 function matchesFilter(item: RepositoryTableItem, filter: RepositoryTableFilter): boolean {
-  if (filter.coverage === 'integrated' && !isCovered(item.status)) {
-    return false;
+  switch (filter.status) {
+    case 'all':
+      return true;
+    case 'covered':
+      return isCovered(item.status);
+    case 'uncovered':
+      return !isCovered(item.status);
+    default:
+      return item.status === filter.status;
   }
-  if (filter.coverage === 'not-integrated' && isCovered(item.status)) {
-    return false;
-  }
-  return filter.status === 'all' || item.status === filter.status;
 }
 
 /** Column set is built per render so cells can show skeletons while their stage is still loading. */
 function buildColumns(
   ingestionPending: boolean,
   enrichmentPending: boolean,
+  integrateLink: IntegrateTemplateLink | undefined,
 ): readonly ColumnConfig<RepositoryTableItem>[] {
   const pendingCell = (
     <Cell>
@@ -106,7 +165,7 @@ function buildColumns(
     </Cell>
   );
 
-  return [
+  const columns: ColumnConfig<RepositoryTableItem>[] = [
     {
       id: 'repo',
       label: 'Repository',
@@ -116,8 +175,8 @@ function buildColumns(
         <CellText
           title={item.repo}
           href={item.url}
-          color={item.inSelectedLanguages ? 'primary' : 'secondary'}
-          description={item.inSelectedLanguages ? undefined : 'Outside the selected languages'}
+          color={item.inPerimeter ? 'primary' : 'secondary'}
+          description={item.inPerimeter ? undefined : 'Outside the perimeter'}
         />
       ),
     },
@@ -138,15 +197,35 @@ function buildColumns(
       id: 'catalogInfoPath',
       label: 'catalog-info.yaml',
       isSortable: true,
-      cell: item =>
-        ingestionPending ? (
-          pendingCell
-        ) : (
+      cell: item => {
+        if (ingestionPending) {
+          return pendingCell;
+        }
+        // No action for a repository the provider will not walk: a pull request against an archived
+        // repository is refused outright, and one merged into a fork or an empty repository still
+        // leaves it out of the catalog.
+        if (integrateLink && item.status === 'not-integrated' && item.providerSkips.length === 0) {
+          return (
+            <Cell>
+              <Flex justify="center">
+                <ButtonLink
+                  href={integrateLink(item)}
+                  aria-label="Integrate"
+                  variant="tertiary"
+                  size="small"
+                  iconStart={<AddCircleOutline />}
+                />
+              </Flex>
+            </Cell>
+          );
+        }
+        return (
           <CellText
             title={item.catalogInfoPaths[0] ?? '—'}
             description={item.catalogInfoPaths.length > 1 ? `+${item.catalogInfoPaths.length - 1} more` : undefined}
           />
-        ),
+        );
+      },
     },
     {
       id: 'entities',
@@ -177,30 +256,42 @@ function buildColumns(
       isSortable: true,
       cell: item => (enrichmentPending ? pendingCell : <CellText title={describeVisibility(item.isPrivate)} />),
     },
+    {
+      id: 'kind',
+      label: '',
+      isSortable: true,
+      // Icons only, so the column costs a fraction of the width the words did.
+      width: 72,
+      cell: item => (enrichmentPending ? pendingCell : <KindCell item={item} />),
+    },
   ];
+  return columns;
 }
 
 export interface RepositoriesTableProps {
   rows: RepositoryRow[];
-  selectedLanguages: readonly string[];
+  perimeter: Perimeter;
   inventoryPending: boolean;
   ingestionPending: boolean;
   enrichmentPending: boolean;
 }
 
 export function RepositoriesTable(props: RepositoriesTableProps): JSX.Element {
-  const { rows, selectedLanguages, inventoryPending, ingestionPending, enrichmentPending } = props;
-  const [showOtherLanguages, setShowOtherLanguages] = useState(false);
+  const { rows, perimeter, inventoryPending, ingestionPending, enrichmentPending } = props;
+  const integrateLink = useIntegrateTemplateLink();
+  const [showOutsidePerimeter, setShowOutsidePerimeter] = useState(false);
 
-  // Language scoping is applied to `data` rather than through `filterFn` so that changing the
-  // selection always recomputes the table, and `useTable` keeps owning search, sort and pagination.
+  // The perimeter is applied to `data` rather than through `filterFn` so that changing it always
+  // recomputes the table, and `useTable` keeps owning search, sort and pagination.
   const items = useMemo<RepositoryTableItem[]>(
     () =>
       rows
-        .map(row => ({ ...row, id: row.repo, inSelectedLanguages: isLanguageSelected(row, selectedLanguages) }))
-        .filter(item => showOtherLanguages || item.inSelectedLanguages),
-    [rows, selectedLanguages, showOtherLanguages],
+        .map(row => ({ ...row, id: row.repo, inPerimeter: isInPerimeter(row, perimeter) }))
+        .filter(item => showOutsidePerimeter || item.inPerimeter),
+    [rows, perimeter, showOutsidePerimeter],
   );
+
+  const hasRowsOutsidePerimeter = items.length < rows.length || showOutsidePerimeter;
 
   const { tableProps, filter, search } = useTable<RepositoryTableItem, RepositoryTableFilter>({
     mode: 'complete',
@@ -228,18 +319,18 @@ export function RepositoriesTable(props: RepositoriesTableProps): JSX.Element {
     totalCount: processed.length,
     resetKey: [
       search.value,
-      activeFilter.coverage,
       activeFilter.status,
       String(sortDescriptor?.column),
       String(sortDescriptor?.direction),
-      String(showOtherLanguages),
-      selectedLanguages.join(','),
+      String(showOutsidePerimeter),
+      perimeter.languages.join(','),
+      perimeter.kinds.join(','),
     ].join('|'),
   });
 
   const columns = useMemo(
-    () => buildColumns(ingestionPending, enrichmentPending),
-    [ingestionPending, enrichmentPending],
+    () => buildColumns(ingestionPending, enrichmentPending, integrateLink),
+    [ingestionPending, enrichmentPending, integrateLink],
   );
   const visibleRows = useMemo(() => processed.slice(0, visibleCount), [processed, visibleCount]);
 
@@ -253,19 +344,17 @@ export function RepositoriesTable(props: RepositoriesTableProps): JSX.Element {
           onChange={search.onChange}
         />
         <Select
-          aria-label="Catalog integration"
-          options={COVERAGE_OPTIONS}
-          value={activeFilter.coverage}
-          onChange={value => filter.onChange({ ...activeFilter, coverage: value as CoverageFilter })}
-        />
-        <Select
-          aria-label="Detailed status"
+          aria-label="Catalog status"
           options={STATUS_OPTIONS}
           value={activeFilter.status}
-          onChange={value => filter.onChange({ ...activeFilter, status: value as IntegrationStatus | 'all' })}
+          onChange={value => filter.onChange({ status: value as StatusFilter })}
         />
-        {selectedLanguages.length > 0 && (
-          <Switch label="Show other languages" isSelected={showOtherLanguages} onChange={setShowOtherLanguages} />
+        {hasRowsOutsidePerimeter && (
+          <Switch
+            label="Show repositories outside the perimeter"
+            isSelected={showOutsidePerimeter}
+            onChange={setShowOutsidePerimeter}
+          />
         )}
       </Flex>
 

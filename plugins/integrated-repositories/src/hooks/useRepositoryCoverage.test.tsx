@@ -4,9 +4,9 @@ import { CatalogApi, catalogApiRef } from '@backstage/plugin-catalog-react';
 import { TestApiProvider } from '@backstage/test-utils';
 import { GithubRepositoryApi, githubRepositoryApiRef } from '../api';
 import { RepositoryCoverage, useRepositoryCoverage } from './useRepositoryCoverage';
-import { GithubRepositoryInfo, UNKNOWN_LANGUAGE } from '../types';
+import { GithubRepositoryInfo } from '../types';
 
-const ORG = 'example-org';
+const ORG = 'happn-app';
 
 function target(repo: string): string {
   return `https://github.com/${ORG}/${repo}/blob/master/**/catalog-info.yaml`;
@@ -44,8 +44,12 @@ function componentEntity(repo: string, path: string): Entity {
 function githubRepository(repo: string, overrides: Partial<GithubRepositoryInfo> = {}): GithubRepositoryInfo {
   return {
     name: repo,
+    owner: ORG,
     url: `https://github.com/${ORG}/${repo}`,
     isPrivate: true,
+    isArchived: false,
+    isFork: false,
+    hasDefaultBranch: true,
     pushedAt: '2026-07-30T00:00:00Z',
     primaryLanguage: 'Java',
     hasRootCatalogInfo: false,
@@ -137,6 +141,18 @@ const CARBON_ROWS = {
   children: [componentEntity('carbon', 'catalog-info.yaml')],
 };
 
+/**
+ * Anything read off a joined row needs every stage, not just the slowest one on this machine. The
+ * stages resolve independently, so waiting on enrichment alone passes locally and fails wherever
+ * ingestion happens to land second.
+ */
+async function waitForEveryStage(harness: Harness): Promise<void> {
+  await waitFor(() => {
+    expect(harness.latest().ingestionPending).toBe(false);
+    expect(harness.latest().enrichmentPending).toBe(false);
+  });
+}
+
 describe('useRepositoryCoverage', () => {
   it('joins locations, ingested entities and GitHub metadata into rows', async () => {
     const harness = renderCoverage({
@@ -144,7 +160,7 @@ describe('useRepositoryCoverage', () => {
       githubRepositories: [githubRepository('carbon'), githubRepository('salt', { primaryLanguage: 'Python' })],
     });
 
-    await waitFor(() => expect(harness.latest().enrichmentPending).toBe(false));
+    await waitForEveryStage(harness);
 
     expect(harness.latest().rows).toEqual([
       expect.objectContaining({ repo: 'carbon', status: 'integrated', entityCount: 1, primaryLanguage: 'Java' }),
@@ -212,7 +228,7 @@ describe('useRepositoryCoverage', () => {
     it('surfaces the failure without breaking the catalog-only view', async () => {
       const harness = renderCoverage({ ...CARBON_ROWS, githubError: new Error('401 Unauthorized') });
 
-      await waitFor(() => expect(harness.latest().enrichmentPending).toBe(false));
+      await waitForEveryStage(harness);
 
       const coverage = harness.latest();
       expect(coverage.enrichmentError?.message).toBe('401 Unauthorized');
@@ -220,8 +236,9 @@ describe('useRepositoryCoverage', () => {
       expect(coverage.error).toBeUndefined();
       // Uningested repositories become `unknown`, since drift can no longer be told apart.
       expect(coverage.rows.map(row => row.status)).toEqual(['integrated', 'unknown']);
-      // No language is known, so the only selectable option is the explicit unknown sentinel.
-      expect(coverage.languageOptions).toEqual([{ id: UNKNOWN_LANGUAGE, label: 'Unknown', repositoryCount: 2 }]);
+      // No GitHub list, so no union and nothing to explain: the provider's locations are all there is.
+      expect(coverage.rows.map(row => row.repo)).toEqual(['carbon', 'salt']);
+      expect(coverage.rows.every(row => row.isTracked && row.providerSkips.length === 0)).toBe(true);
     });
   });
 
@@ -233,15 +250,21 @@ describe('useRepositoryCoverage', () => {
     expect(harness.latest().rows).toEqual([]);
   });
 
-  it('counts the GitHub repositories the provider does not track', async () => {
+  it('lists the repositories the provider leaves out, with the reason', async () => {
     const harness = renderCoverage({
       ...CARBON_ROWS,
-      githubRepositories: [githubRepository('carbon'), githubRepository('salt'), githubRepository('an-archived-fork')],
+      githubRepositories: [
+        githubRepository('carbon'),
+        githubRepository('salt'),
+        githubRepository('an-archived-fork', { isArchived: true, isFork: true }),
+      ],
     });
 
-    await waitFor(() => expect(harness.latest().enrichmentPending).toBe(false));
+    await waitForEveryStage(harness);
 
-    expect(harness.latest().untrackedRepositoryCount).toBe(1);
+    const rows = harness.latest().rows;
+    expect(rows.map(row => row.repo)).toEqual(['an-archived-fork', 'carbon', 'salt']);
+    expect(rows[0]).toMatchObject({ isTracked: false, providerSkips: ['archived', 'fork'] });
   });
 
   it('drops the GitHub cache when the enrichment stage is refreshed', async () => {

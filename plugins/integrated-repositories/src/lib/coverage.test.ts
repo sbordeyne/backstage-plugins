@@ -1,20 +1,22 @@
 import { Entity } from '@backstage/catalog-model';
-import {
-  buildRepositoryRows,
-  countRepositoriesWithoutLocation,
-  isCovered,
-  collectLanguageOptions,
-  isLanguageSelected,
-  selectUncoveredRepositories,
-  summarizeCoverage,
-} from './coverage';
-import { GithubRepositoryInfo, RepositoryLocation, RepositoryRow, UNKNOWN_LANGUAGE } from '../types';
+import { buildRepositoryRows, isCovered, selectUncoveredRepositories, summarizeCoverage } from './coverage';
+import { DEFAULT_PERIMETER } from './perimeter';
+import { ALL_REPOSITORY_KINDS } from './labels';
+import { GithubRepositoryInfo, Perimeter, RepositoryKind, RepositoryLocation, RepositoryRow } from '../types';
 
-const ORG = 'example-org';
+const ORG = 'happn-app';
+
+/** Every kind and every language, unless a test narrows one dimension. */
+function perimeter(overrides: Partial<Perimeter> = {}): Perimeter {
+  return { languages: [], kinds: ALL_REPOSITORY_KINDS, ...overrides };
+}
+
+function excluding(...kinds: RepositoryKind[]): Perimeter {
+  return perimeter({ kinds: ALL_REPOSITORY_KINDS.filter(kind => !kinds.includes(kind)) });
+}
 
 function location(repo: string): RepositoryLocation {
   return {
-    host: 'github.com',
     org: ORG,
     repo,
     target: `https://github.com/${ORG}/${repo}/blob/master/**/catalog-info.yaml`,
@@ -41,8 +43,12 @@ function child(repo: string, path: string, kind: string = 'Component'): Entity {
 function githubRepo(name: string, overrides: Partial<GithubRepositoryInfo> = {}): GithubRepositoryInfo {
   return {
     name,
+    owner: ORG,
     url: `https://github.com/${ORG}/${name}`,
     isPrivate: true,
+    isArchived: false,
+    isFork: false,
+    hasDefaultBranch: true,
     pushedAt: '2026-07-01T00:00:00Z',
     primaryLanguage: 'Java',
     hasRootCatalogInfo: false,
@@ -123,10 +129,12 @@ describe('buildRepositoryRows', () => {
     expect(row).toMatchObject({ status: 'unknown', primaryLanguage: undefined });
   });
 
-  it('reports unknown when the repository is absent from the GitHub response', () => {
-    const [row] = rowsFor([location('renamed')], [], [githubRepo('other')]);
+  it('reports unknown when a tracked repository is absent from the GitHub response', () => {
+    // A rename between the last provider sync and now: the Location survives, GitHub knows nothing
+    // about that name any more, so nothing can be said about its file.
+    const rows = rowsFor([location('renamed')], [], [githubRepo('other')]);
 
-    expect(row.status).toBe('unknown');
+    expect(rows.find(row => row.repo === 'renamed')).toMatchObject({ status: 'unknown', isTracked: true });
   });
 
   it('still counts entities whose resolved path cannot be parsed', () => {
@@ -164,6 +172,16 @@ describe('buildRepositoryRows', () => {
     const [row] = rowsFor([location('salt')], [providerLocation], [githubRepo('salt')]);
 
     expect(row).toMatchObject({ status: 'not-integrated', entityCount: 0 });
+  });
+
+  it('counts a Location the catalog-info.yaml declares by hand', () => {
+    // Unlike the generated one, this Location is a product of the file, so a repository whose
+    // catalog-info.yaml only declares Locations is integrated rather than drifting.
+    const declaredLocation = child('esctl', 'catalog-info.yaml', 'Location');
+
+    const [row] = rowsFor([location('esctl')], [declaredLocation], [githubRepo('esctl', { hasRootCatalogInfo: true })]);
+
+    expect(row).toMatchObject({ status: 'integrated', entityCount: 1, entityKinds: ['Location'] });
   });
 
   it('collects distinct entity kinds', () => {
@@ -220,7 +238,7 @@ describe('summarizeCoverage', () => {
       [githubRepo('a'), githubRepo('b'), githubRepo('c'), githubRepo('d')],
     );
 
-    expect(summarizeCoverage(rows, [])).toMatchObject({
+    expect(summarizeCoverage(rows, perimeter())).toMatchObject({
       total: 4,
       integrated: 1,
       notIntegrated: 3,
@@ -235,7 +253,7 @@ describe('summarizeCoverage', () => {
     );
     const children = locations.slice(0, 78).map(entry => child(entry.repo, 'catalog-info.yaml'));
 
-    const stats = summarizeCoverage(rowsFor(locations, children, []), []);
+    const stats = summarizeCoverage(rowsFor(locations, children, []), perimeter());
 
     expect(stats).toMatchObject({
       total: 148,
@@ -253,7 +271,7 @@ describe('summarizeCoverage', () => {
       [githubRepo('docker')],
     );
 
-    expect(summarizeCoverage(rows, [])).toMatchObject({
+    expect(summarizeCoverage(rows, perimeter())).toMatchObject({
       integrated: 1,
       nestedOnly: 1,
       uncoveredPercentage: 0,
@@ -271,12 +289,12 @@ describe('summarizeCoverage', () => {
       ],
     );
 
-    expect(summarizeCoverage(rows, ['Java', 'Kotlin'])).toMatchObject({
+    expect(summarizeCoverage(rows, perimeter({ languages: ['Java', 'Kotlin'] }))).toMatchObject({
       total: 2,
       integrated: 1,
       uncoveredPercentage: 50,
     });
-    expect(summarizeCoverage(rows, [])).toMatchObject({ total: 3, integrated: 1, uncoveredPercentage: 66.7 });
+    expect(summarizeCoverage(rows, perimeter())).toMatchObject({ total: 3, integrated: 1, uncoveredPercentage: 66.7 });
   });
 
   it('sums the entities of the repositories in scope only', () => {
@@ -286,22 +304,72 @@ describe('summarizeCoverage', () => {
       [githubRepo('java-repo', { primaryLanguage: 'Java' }), githubRepo('go-repo', { primaryLanguage: 'Go' })],
     );
 
-    expect(summarizeCoverage(rows, ['Java', 'Kotlin']).entityCount).toBe(1);
-    expect(summarizeCoverage(rows, []).entityCount).toBe(2);
+    expect(summarizeCoverage(rows, perimeter({ languages: ['Java', 'Kotlin'] })).entityCount).toBe(1);
+    expect(summarizeCoverage(rows, perimeter()).entityCount).toBe(2);
   });
 
   it('reports zeroes rather than NaN when nothing is in scope', () => {
-    expect(summarizeCoverage([], ['Java', 'Kotlin'])).toMatchObject({
+    expect(summarizeCoverage([], perimeter({ languages: ['Java', 'Kotlin'] }))).toMatchObject({
       total: 0,
       uncoveredPercentage: 0,
       coveredPercentage: 0,
     });
   });
 
+  it('counts every kind when the selection asks for every kind', () => {
+    const rows = rowsFor(
+      [location('carbon')],
+      [child('carbon', 'catalog-info.yaml')],
+      [githubRepo('carbon'), githubRepo('archived', { isArchived: true }), githubRepo('a-fork', { isFork: true })],
+    );
+
+    expect(summarizeCoverage(rows, perimeter())).toMatchObject({ total: 3, integrated: 1, uncoveredPercentage: 66.7 });
+  });
+
+  it('measures only the active repositories under the default perimeter', () => {
+    const rows = rowsFor(
+      [location('carbon')],
+      [child('carbon', 'catalog-info.yaml')],
+      [githubRepo('carbon'), githubRepo('archived', { isArchived: true }), githubRepo('a-fork', { isFork: true })],
+    );
+
+    // Neither the archived repository nor the fork can ever be onboarded, so neither belongs in the
+    // figure the page opens on.
+    expect(summarizeCoverage(rows, DEFAULT_PERIMETER)).toMatchObject({
+      total: 1,
+      integrated: 1,
+      uncoveredPercentage: 0,
+    });
+  });
+
+  it('drops both the rows and the denominator when a kind leaves the selection', () => {
+    const rows = rowsFor(
+      [location('carbon')],
+      [child('carbon', 'catalog-info.yaml')],
+      [githubRepo('carbon'), githubRepo('archived', { isArchived: true }), githubRepo('a-fork', { isFork: true })],
+    );
+
+    expect(summarizeCoverage(rows, excluding('archived'))).toMatchObject({ total: 2, uncoveredPercentage: 50 });
+    expect(summarizeCoverage(rows, excluding('archived', 'fork'))).toMatchObject({
+      total: 1,
+      integrated: 1,
+      uncoveredPercentage: 0,
+    });
+  });
+
+  it('keeps a repository that is both archived and a fork under either kind', () => {
+    // Selecting Fork means "show me the forks", so an archived fork is one of them.
+    const rows = rowsFor([], [], [githubRepo('both', { isArchived: true, isFork: true }), githubRepo('walked')]);
+
+    expect(summarizeCoverage(rows, perimeter({ kinds: ['archived'] })).total).toBe(1);
+    expect(summarizeCoverage(rows, perimeter({ kinds: ['fork'] })).total).toBe(1);
+    expect(summarizeCoverage(rows, perimeter({ kinds: ['active'] })).total).toBe(1);
+  });
+
   it('counts unknown repositories as uncovered when enrichment failed', () => {
     const rows = rowsFor([location('a'), location('b')], [child('a', 'catalog-info.yaml')], [], false);
 
-    expect(summarizeCoverage(rows, [])).toMatchObject({
+    expect(summarizeCoverage(rows, perimeter())).toMatchObject({
       total: 2,
       integrated: 1,
       unknown: 1,
@@ -322,7 +390,11 @@ describe('selectUncoveredRepositories', () => {
       ],
     );
 
-    expect(selectUncoveredRepositories(rows, [], 10).map(row => row.repo)).toEqual(['drifting', 'fresh', 'stale']);
+    expect(selectUncoveredRepositories(rows, perimeter(), 10).map(row => row.repo)).toEqual([
+      'drifting',
+      'fresh',
+      'stale',
+    ]);
   });
 
   it('excludes covered repositories and honours the limit', () => {
@@ -332,19 +404,24 @@ describe('selectUncoveredRepositories', () => {
       [githubRepo('a'), githubRepo('b'), githubRepo('c')],
     );
 
-    expect(selectUncoveredRepositories(rows, [], 1)).toHaveLength(1);
-    expect(selectUncoveredRepositories(rows, [], 10).map(row => row.repo)).not.toContain('a');
+    expect(selectUncoveredRepositories(rows, perimeter(), 1)).toHaveLength(1);
+    expect(selectUncoveredRepositories(rows, perimeter(), 10).map(row => row.repo)).not.toContain('a');
   });
-});
 
-describe('countRepositoriesWithoutLocation', () => {
-  it('counts the GitHub repositories the provider does not track', () => {
-    const count = countRepositoriesWithoutLocation(
-      [location('tracked')],
-      githubIndex([githubRepo('tracked'), githubRepo('archived'), githubRepo('a-fork')]),
+  it('leaves out repositories the provider will never walk, whatever the perimeter says', () => {
+    // Onboarding one cannot put it in the catalog, so suggesting it would not be a thing to do.
+    const rows = rowsFor(
+      [],
+      [],
+      [
+        githubRepo('archived', { isArchived: true, pushedAt: '2026-07-30T00:00:00Z' }),
+        githubRepo('a-fork', { isFork: true, pushedAt: '2026-07-29T00:00:00Z' }),
+        githubRepo('empty', { hasDefaultBranch: false, pushedAt: '2026-07-28T00:00:00Z' }),
+        githubRepo('onboardable', { pushedAt: '2026-01-01T00:00:00Z' }),
+      ],
     );
 
-    expect(count).toBe(2);
+    expect(selectUncoveredRepositories(rows, perimeter(), 10).map(row => row.repo)).toEqual(['onboardable']);
   });
 });
 
@@ -358,61 +435,68 @@ describe('isCovered', () => {
   });
 });
 
-describe('isLanguageSelected', () => {
-  const java = { primaryLanguage: 'Java' } as RepositoryRow;
-  const noLanguage = {} as RepositoryRow;
-
-  it('matches everything when the selection is empty, so clearing never blanks the page', () => {
-    expect(isLanguageSelected(java, [])).toBe(true);
-    expect(isLanguageSelected(noLanguage, [])).toBe(true);
-  });
-
-  it('matches case-insensitively', () => {
-    expect(isLanguageSelected(java, ['java'])).toBe(true);
-    expect(isLanguageSelected({ primaryLanguage: 'kotlin' } as RepositoryRow, ['Kotlin'])).toBe(true);
-  });
-
-  it('excludes languages that are not selected', () => {
-    expect(isLanguageSelected(java, ['Kotlin', 'Go'])).toBe(false);
-  });
-
-  it('matches a repository without a language only through the Unknown option', () => {
-    expect(isLanguageSelected(noLanguage, ['Java'])).toBe(false);
-    expect(isLanguageSelected(noLanguage, [UNKNOWN_LANGUAGE])).toBe(true);
-  });
-});
-
-describe('collectLanguageOptions', () => {
-  it('orders by repository count, then name, and appends Unknown last', () => {
+describe('the union with GitHub', () => {
+  it('lists a repository GitHub reports and the provider has no Location for', () => {
     const rows = rowsFor(
-      [location('a'), location('b'), location('c'), location('d'), location('e')],
+      [location('carbon')],
       [],
-      [
-        githubRepo('a', { primaryLanguage: 'Java' }),
-        githubRepo('b', { primaryLanguage: 'Java' }),
-        githubRepo('c', { primaryLanguage: 'Kotlin' }),
-        githubRepo('d', { primaryLanguage: 'Go' }),
-        githubRepo('e', { primaryLanguage: undefined }),
-      ],
+      [githubRepo('carbon'), githubRepo('happn-legacy', { isArchived: true })],
     );
 
-    expect(collectLanguageOptions(rows)).toEqual([
-      { id: 'Java', label: 'Java', repositoryCount: 2 },
-      { id: 'Go', label: 'Go', repositoryCount: 1 },
-      { id: 'Kotlin', label: 'Kotlin', repositoryCount: 1 },
-      { id: UNKNOWN_LANGUAGE, label: 'Unknown', repositoryCount: 1 },
+    expect(rows.map(row => [row.repo, row.isTracked])).toEqual([
+      ['carbon', true],
+      ['happn-legacy', false],
     ]);
   });
 
-  it('omits the Unknown option when every repository has a language', () => {
-    const rows = rowsFor([location('a')], [], [githubRepo('a', { primaryLanguage: 'Java' })]);
+  it('reads the organization of an untracked repository from its GitHub owner', () => {
+    const [row] = rowsFor([], [], [githubRepo('happn-legacy', { owner: 'happn-app', isFork: true })]);
 
-    expect(collectLanguageOptions(rows)).toEqual([{ id: 'Java', label: 'Java', repositoryCount: 1 }]);
+    expect(row).toMatchObject({ org: 'happn-app', url: `https://github.com/${ORG}/happn-legacy` });
   });
 
-  it('returns only Unknown before GitHub enrichment lands', () => {
-    const rows = rowsFor([location('a'), location('b')], [], [], false);
+  it('names every reason the provider skips a repository', () => {
+    const rows = rowsFor(
+      [],
+      [],
+      [
+        githubRepo('archived', { isArchived: true }),
+        githubRepo('a-fork', { isFork: true }),
+        githubRepo('empty', { hasDefaultBranch: false }),
+        githubRepo('archived-fork', { isArchived: true, isFork: true }),
+        githubRepo('walked'),
+      ],
+    );
 
-    expect(collectLanguageOptions(rows)).toEqual([{ id: UNKNOWN_LANGUAGE, label: 'Unknown', repositoryCount: 2 }]);
+    expect(rows.map(row => [row.repo, row.providerSkips])).toEqual([
+      ['a-fork', ['fork']],
+      ['archived', ['archived']],
+      ['archived-fork', ['archived', 'fork']],
+      ['empty', ['no-default-branch']],
+      ['walked', []],
+    ]);
+  });
+
+  it('follows GitHub rather than a stale Location for a repository archived since the last sync', () => {
+    const rows = rowsFor(
+      [location('carbon')],
+      [child('carbon', 'catalog-info.yaml')],
+      [githubRepo('carbon', { isArchived: true })],
+    );
+
+    expect(rows[0]).toMatchObject({ isTracked: true, status: 'integrated', providerSkips: ['archived'] });
+  });
+
+  it('reports an untracked repository with no skip reason, which is a genuine gap', () => {
+    const [row] = rowsFor([], [], [githubRepo('created-yesterday')]);
+
+    expect(row).toMatchObject({ isTracked: false, providerSkips: [], status: 'not-integrated' });
+  });
+
+  it('has no untracked rows at all when GitHub could not be reached', () => {
+    const rows = rowsFor([location('carbon')], [], [], false);
+
+    expect(rows.map(row => row.repo)).toEqual(['carbon']);
+    expect(rows[0].providerSkips).toEqual([]);
   });
 });

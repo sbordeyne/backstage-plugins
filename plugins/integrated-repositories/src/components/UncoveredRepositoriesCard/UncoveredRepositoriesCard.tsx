@@ -3,14 +3,14 @@ import { Card, CardBody, CardHeader, Flex, Link, Skeleton, Text } from '@backsta
 import { selectUncoveredRepositories } from '../../lib/coverage';
 import { formatDate } from '../../lib/labels';
 import { IntegrationStatusLabel } from '../IntegrationStatusLabel';
-import { RepositoryRow } from '../../types';
+import { Perimeter, RepositoryRow } from '../../types';
 
 const MAX_SUGGESTIONS = 10;
 const SKELETON_ROWS = 5;
 
 export interface UncoveredRepositoriesCardProps {
   rows: RepositoryRow[];
-  selectedLanguages: readonly string[];
+  perimeter: Perimeter;
   /** Ranking needs `pushedAt`, which only arrives with GitHub enrichment. */
   pending: boolean;
 }
@@ -30,11 +30,8 @@ function SuggestionSkeletons(): JSX.Element {
 
 /** A worklist of what to onboard next, ordered by recent activity with drift first. */
 export function UncoveredRepositoriesCard(props: UncoveredRepositoriesCardProps): JSX.Element | null {
-  const { rows, selectedLanguages, pending } = props;
-  const suggestions = useMemo(
-    () => selectUncoveredRepositories(rows, selectedLanguages, MAX_SUGGESTIONS),
-    [rows, selectedLanguages],
-  );
+  const { rows, perimeter, pending } = props;
+  const suggestions = useMemo(() => selectUncoveredRepositories(rows, perimeter, MAX_SUGGESTIONS), [rows, perimeter]);
 
   if (!pending && suggestions.length === 0) {
     return null;
@@ -48,7 +45,8 @@ export function UncoveredRepositoriesCard(props: UncoveredRepositoriesCardProps)
             Next repositories to onboard
           </Text>
           <Text variant="body-small" color="secondary">
-            Uncovered repositories, most recently pushed first. Drift comes first because the file is already committed.
+            Uncovered repositories the provider actually walks, most recently pushed first. Drift comes first because
+            the file is already committed.
           </Text>
         </Flex>
       </CardHeader>

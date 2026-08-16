@@ -3,12 +3,13 @@ import {
   CoverageStats,
   GithubRepositoryInfo,
   IntegrationStatus,
-  LanguageOption,
+  Perimeter,
+  ProviderSkip,
   RepositoryLocation,
   RepositoryRow,
-  UNKNOWN_LANGUAGE,
 } from '../types';
-import { isRootCatalogPath, parseResolvedCatalogPath, toOriginLocationRef } from './locations';
+import { isGeneratedLocation, isRootCatalogPath, parseResolvedCatalogPath, toOriginLocationRef } from './locations';
+import { isInPerimeter } from './perimeter';
 
 /** The entities a single provider location produced. */
 interface IngestedEntities {
@@ -39,9 +40,10 @@ function groupChildrenByOrigin(children: Entity[]): Map<string, IngestedEntities
   const byOrigin = new Map<string, IngestedEntities>();
 
   for (const child of children) {
-    // The provider's own Location entity is its own origin, so counting Locations would make
-    // every repository look integrated. Only the entities a catalog-info.yaml produced count.
-    if (child.kind === 'Location') {
+    // The provider's own Location entity is its own origin, so counting it would make every
+    // repository look integrated. A Location a catalog-info.yaml declares by hand is a genuine
+    // product of that file and does count.
+    if (isGeneratedLocation(child)) {
       continue;
     }
 
@@ -82,16 +84,41 @@ function resolveStatus(
   return github.hasRootCatalogInfo ? 'drift' : 'not-integrated';
 }
 
+/**
+ * Why the provider does not walk a repository, read from GitHub rather than from the catalog.
+ *
+ * A repository archived since the last sync still has its `Location`, so trusting the catalog here
+ * would keep it in the perimeter after GitHub has already put it out of reach.
+ */
+function resolveProviderSkips(github: GithubRepositoryInfo | undefined): ProviderSkip[] {
+  if (!github) {
+    return [];
+  }
+
+  const skips: ProviderSkip[] = [];
+  if (github.isArchived) {
+    skips.push('archived');
+  }
+  if (github.isFork) {
+    skips.push('fork');
+  }
+  if (!github.hasDefaultBranch) {
+    skips.push('no-default-branch');
+  }
+  return skips;
+}
+
 function toRepositoryRow(
-  location: RepositoryLocation,
+  identity: { repo: string; org: string },
   ingested: IngestedEntities | undefined,
   github: GithubRepositoryInfo | undefined,
   githubEnrichmentAvailable: boolean,
+  isTracked: boolean,
 ): RepositoryRow {
   return {
-    repo: location.repo,
-    org: location.org,
-    url: github?.url ?? `https://github.com/${location.org}/${location.repo}`,
+    repo: identity.repo,
+    org: identity.org,
+    url: github?.url ?? `https://github.com/${identity.org}/${identity.repo}`,
     status: resolveStatus(ingested, github, githubEnrichmentAvailable),
     catalogInfoPaths: [...(ingested?.paths ?? [])].sort(),
     entityCount: ingested?.count ?? 0,
@@ -99,24 +126,40 @@ function toRepositoryRow(
     primaryLanguage: github?.primaryLanguage,
     pushedAt: github?.pushedAt,
     isPrivate: github?.isPrivate,
+    defaultBranch: github?.defaultBranch,
+    isTracked,
+    providerSkips: resolveProviderSkips(github),
   };
 }
 
-/** Joins provider locations, the entities they produced, and GitHub metadata into table rows. */
+/**
+ * Joins provider locations, the entities they produced, and GitHub metadata into table rows.
+ *
+ * The inventory is the **union** of the two sides. The provider emits no `Location` for archived
+ * repositories, forks or empty ones, and listing only what it walks would hide exactly the
+ * repositories this page exists to surface. GitHub already returns them, so the union costs nothing.
+ */
 export function buildRepositoryRows(options: BuildRepositoryRowsOptions): RepositoryRow[] {
   const { locations, children, githubRepositories, githubEnrichmentAvailable } = options;
   const byOrigin = groupChildrenByOrigin(children);
 
-  return locations
-    .map(location =>
-      toRepositoryRow(
-        location,
-        byOrigin.get(toOriginLocationRef(location.target)),
-        githubRepositories.get(location.repo),
-        githubEnrichmentAvailable,
-      ),
-    )
-    .sort((a, b) => a.repo.localeCompare(b.repo));
+  const tracked = locations.map(location =>
+    toRepositoryRow(
+      location,
+      byOrigin.get(toOriginLocationRef(location.target)),
+      githubRepositories.get(location.repo),
+      githubEnrichmentAvailable,
+      true,
+    ),
+  );
+
+  const trackedNames = new Set(locations.map(location => location.repo));
+  // An untracked row only exists because GitHub answered, so enrichment is available by construction.
+  const untracked = [...githubRepositories.values()]
+    .filter(github => !trackedNames.has(github.name))
+    .map(github => toRepositoryRow({ repo: github.name, org: github.owner }, undefined, github, true, false));
+
+  return [...tracked, ...untracked].sort((a, b) => a.repo.localeCompare(b.repo));
 }
 
 /** Whether a repository counts as integrated for the binary "integrated / not integrated" filter. */
@@ -124,57 +167,19 @@ export function isCovered(status: IntegrationStatus): boolean {
   return status === 'integrated' || status === 'integrated-nested';
 }
 
-/**
- * Whether a repository falls inside the selected languages.
- *
- * An empty selection means "no language filter", so it matches everything rather than nothing —
- * clearing the control must never blank the page. A repository with no detected language matches
- * only the explicit {@link UNKNOWN_LANGUAGE} option.
- */
-export function isLanguageSelected(row: RepositoryRow, selectedLanguages: readonly string[]): boolean {
-  if (selectedLanguages.length === 0) {
-    return true;
-  }
-  if (row.primaryLanguage === undefined) {
-    return selectedLanguages.includes(UNKNOWN_LANGUAGE);
-  }
-  const language = row.primaryLanguage.toLowerCase();
-  return selectedLanguages.some(selected => selected.toLowerCase() === language);
-}
-
-/**
- * The selectable languages, derived from the repositories themselves so the list always matches the
- * organization. Ordered by repository count so the dominant languages come first.
- */
-export function collectLanguageOptions(rows: RepositoryRow[]): LanguageOption[] {
-  const counts = new Map<string, number>();
-  let withoutLanguage = 0;
-
-  for (const row of rows) {
-    if (row.primaryLanguage === undefined) {
-      withoutLanguage += 1;
-    } else {
-      counts.set(row.primaryLanguage, (counts.get(row.primaryLanguage) ?? 0) + 1);
-    }
-  }
-
-  const options = [...counts.entries()]
-    .map(([label, repositoryCount]) => ({ id: label, label, repositoryCount }))
-    .sort((a, b) => b.repositoryCount - a.repositoryCount || a.label.localeCompare(b.label));
-
-  if (withoutLanguage > 0) {
-    options.push({ id: UNKNOWN_LANGUAGE, label: 'Unknown', repositoryCount: withoutLanguage });
-  }
-  return options;
-}
-
 function countByStatus(rows: RepositoryRow[], status: IntegrationStatus): number {
   return rows.filter(row => row.status === status).length;
 }
 
-/** Aggregates the coverage KPI over the repositories in the selected languages. */
-export function summarizeCoverage(rows: RepositoryRow[], selectedLanguages: readonly string[]): CoverageStats {
-  const scoped = rows.filter(row => isLanguageSelected(row, selectedLanguages));
+/**
+ * Aggregates the coverage KPI over the repositories inside the perimeter.
+ *
+ * The perimeter is the only thing that moves this figure. The table's own status filter and search
+ * are reading aids: were they to reach the denominator, filtering on "not integrated" would report
+ * 100 % not integrated.
+ */
+export function summarizeCoverage(rows: RepositoryRow[], perimeter: Perimeter): CoverageStats {
+  const scoped = rows.filter(row => isInPerimeter(row, perimeter));
   const total = scoped.length;
   const integrated = scoped.filter(row => isCovered(row.status)).length;
   const notIntegrated = total - integrated;
@@ -196,14 +201,17 @@ export function summarizeCoverage(rows: RepositoryRow[], selectedLanguages: read
 /**
  * The repositories worth onboarding next: uncovered, most recently pushed first, with drift
  * ahead of everything else since a committed-but-not-ingested file is the cheapest fix.
+ *
+ * Repositories the provider will never walk are left out whatever the perimeter says. Onboarding one
+ * cannot put it in the catalog, so a worklist that suggested it would not be a list of things to do.
  */
 export function selectUncoveredRepositories(
   rows: RepositoryRow[],
-  selectedLanguages: readonly string[],
+  perimeter: Perimeter,
   limit: number,
 ): RepositoryRow[] {
   return rows
-    .filter(row => isLanguageSelected(row, selectedLanguages) && !isCovered(row.status))
+    .filter(row => isInPerimeter(row, perimeter) && !isCovered(row.status) && row.providerSkips.length === 0)
     .sort((a, b) => {
       if (a.status !== b.status) {
         if (a.status === 'drift') return -1;
@@ -212,13 +220,4 @@ export function selectUncoveredRepositories(
       return (b.pushedAt ?? '').localeCompare(a.pushedAt ?? '');
     })
     .slice(0, limit);
-}
-
-/** GitHub repositories the catalog provider does not track, i.e. archived repositories and forks. */
-export function countRepositoriesWithoutLocation(
-  locations: RepositoryLocation[],
-  githubRepositories: Map<string, GithubRepositoryInfo>,
-): number {
-  const tracked = new Set(locations.map(location => location.repo));
-  return [...githubRepositories.values()].filter(repository => !tracked.has(repository.name)).length;
 }

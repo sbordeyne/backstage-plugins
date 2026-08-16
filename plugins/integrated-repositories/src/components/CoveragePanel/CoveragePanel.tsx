@@ -1,22 +1,22 @@
 import { alertApiRef, useApi } from '@backstage/core-plugin-api';
 import { Box, Button, Card, CardBody, CardHeader, Flex, Grid, Select, Skeleton, Text } from '@backstage/ui';
 import { formatBaseline } from '../../lib/baseline';
-import { describeLanguageSelection } from '../../lib/languages';
-import { STATUS_DESCRIPTIONS, STATUS_LABELS } from '../../lib/labels';
-import { CoverageStats, IntegrationStatus, LanguageOption } from '../../types';
+import { REPOSITORY_KIND_DESCRIPTIONS, STATUS_DESCRIPTIONS, STATUS_LABELS } from '../../lib/labels';
+import { describePerimeter } from '../../lib/perimeter';
+import { CoverageStats, IntegrationStatus, KindOption, LanguageOption, Perimeter, RepositoryKind } from '../../types';
 
 const LEGEND_STATUSES: IntegrationStatus[] = ['integrated', 'integrated-nested', 'drift', 'not-integrated', 'unknown'];
 
 export interface CoveragePanelProps {
   stats: CoverageStats;
   languageOptions: LanguageOption[];
-  selectedLanguages: readonly string[];
-  onLanguagesChange: (languages: string[]) => void;
-  /** Archived repositories and forks, which the catalog provider does not track at all. */
-  untrackedRepositoryCount: number;
+  /** One option per repository kind that actually occurs, carrying how many it holds. */
+  kindOptions: KindOption[];
+  perimeter: Perimeter;
+  onPerimeterChange: (perimeter: Perimeter) => void;
   /** The KPI is not meaningful until ingestion is known. */
   ingestionPending: boolean;
-  /** Languages are unknown until GitHub enrichment lands. */
+  /** The perimeter controls are all GitHub-derived, so none of them exist until enrichment lands. */
   enrichmentPending: boolean;
   githubEnrichmentAvailable: boolean;
   onRefresh: () => void;
@@ -75,18 +75,72 @@ function CoverageBar({ coveredPercentage }: { coveredPercentage: number }): JSX.
   );
 }
 
-function StatusLegend(): JSX.Element {
+function LegendEntry({ term, description }: { term: string; description: string }): JSX.Element {
+  return (
+    <Text variant="body-small" color="secondary">
+      <Text variant="body-small" weight="bold" as="span">
+        {term}
+      </Text>
+      {` — ${description}`}
+    </Text>
+  );
+}
+
+function StatusLegend({ kindOptions }: { kindOptions: KindOption[] }): JSX.Element {
   return (
     <Flex direction="column" gap="1">
       {LEGEND_STATUSES.map(status => (
-        <Text key={status} variant="body-small" color="secondary">
-          <Text variant="body-small" weight="bold" as="span">
-            {STATUS_LABELS[status]}
-          </Text>
-          {` — ${STATUS_DESCRIPTIONS[status]}`}
-        </Text>
+        <LegendEntry key={status} term={STATUS_LABELS[status]} description={STATUS_DESCRIPTIONS[status]} />
+      ))}
+      {kindOptions.map(option => (
+        <LegendEntry key={option.id} term={option.label} description={REPOSITORY_KIND_DESCRIPTIONS[option.id]} />
       ))}
     </Flex>
+  );
+}
+
+/**
+ * The two controls that define the population the figure above describes.
+ *
+ * Each option carries how many repositories it holds, so choosing one is never a guess, and both are
+ * multi-selects: an empty selection means every value rather than none.
+ */
+function PerimeterControls(props: {
+  languageOptions: LanguageOption[];
+  kindOptions: KindOption[];
+  perimeter: Perimeter;
+  onPerimeterChange: (perimeter: Perimeter) => void;
+  isDisabled: boolean;
+}): JSX.Element {
+  const { languageOptions, kindOptions, perimeter, onPerimeterChange, isDisabled } = props;
+
+  return (
+    <>
+      <Select
+        selectionMode="multiple"
+        aria-label="Repository kinds"
+        placeholder="All kinds"
+        options={kindOptions.map(option => ({
+          id: option.id,
+          label: `${option.label} (${option.repositoryCount})`,
+        }))}
+        value={perimeter.kinds}
+        isDisabled={isDisabled}
+        onChange={value => onPerimeterChange({ ...perimeter, kinds: value.map(String) as RepositoryKind[] })}
+      />
+      <Select
+        selectionMode="multiple"
+        aria-label="Primary languages"
+        placeholder="All languages"
+        options={languageOptions.map(option => ({
+          id: option.id,
+          label: `${option.label} (${option.repositoryCount})`,
+        }))}
+        value={perimeter.languages}
+        isDisabled={isDisabled}
+        onChange={value => onPerimeterChange({ ...perimeter, languages: value.map(String) })}
+      />
+    </>
   );
 }
 
@@ -94,9 +148,9 @@ export function CoveragePanel(props: CoveragePanelProps): JSX.Element {
   const {
     stats,
     languageOptions,
-    selectedLanguages,
-    onLanguagesChange,
-    untrackedRepositoryCount,
+    kindOptions,
+    perimeter,
+    onPerimeterChange,
     ingestionPending,
     enrichmentPending,
     githubEnrichmentAvailable,
@@ -105,7 +159,7 @@ export function CoveragePanel(props: CoveragePanelProps): JSX.Element {
   const alertApi = useApi(alertApiRef);
 
   const copyBaseline = async (): Promise<void> => {
-    const baseline = formatBaseline(stats, selectedLanguages, new Date().toISOString().slice(0, 10));
+    const baseline = formatBaseline(stats, perimeter, new Date().toISOString().slice(0, 10));
 
     try {
       // The Clipboard API is absent on insecure origins and rejects when the permission is denied.
@@ -130,17 +184,12 @@ export function CoveragePanel(props: CoveragePanelProps): JSX.Element {
             {enrichmentPending ? (
               <Skeleton width={180} height={32} />
             ) : (
-              <Select
-                selectionMode="multiple"
-                aria-label="Primary languages"
-                placeholder="All languages"
-                options={languageOptions.map(option => ({
-                  id: option.id,
-                  label: `${option.label} (${option.repositoryCount})`,
-                }))}
-                value={selectedLanguages}
+              <PerimeterControls
+                languageOptions={languageOptions}
+                kindOptions={kindOptions}
+                perimeter={perimeter}
+                onPerimeterChange={onPerimeterChange}
                 isDisabled={!githubEnrichmentAvailable}
-                onChange={value => onLanguagesChange(value.map(String))}
               />
             )}
             <Button variant="tertiary" onPress={onRefresh} isDisabled={enrichmentPending}>
@@ -164,10 +213,10 @@ export function CoveragePanel(props: CoveragePanelProps): JSX.Element {
             )}
             <Text variant="body-medium" color="secondary">
               {ingestionPending
-                ? `Reading the catalog — languages: ${describeLanguageSelection(selectedLanguages)}`
+                ? `Reading the catalog — ${describePerimeter(perimeter)}`
                 : `${stats.integrated} of ${stats.total} repositories integrated (${
                     stats.coveredPercentage
-                  } % integrated) — languages: ${describeLanguageSelection(selectedLanguages)}`}
+                  } % integrated) — ${describePerimeter(perimeter)}`}
             </Text>
           </Flex>
 
@@ -184,12 +233,11 @@ export function CoveragePanel(props: CoveragePanelProps): JSX.Element {
           </Grid.Root>
 
           <Text variant="body-small" color="secondary">
-            {`Archived repositories and forks are excluded by the catalog provider${
-              githubEnrichmentAvailable ? ` (${untrackedRepositoryCount} on GitHub)` : ''
-            }.`}
+            The controls above set the perimeter: they move these figures and the table together. The table's own status
+            filter and search only narrow what is listed.
           </Text>
 
-          <StatusLegend />
+          <StatusLegend kindOptions={kindOptions} />
         </Flex>
       </CardBody>
     </Card>

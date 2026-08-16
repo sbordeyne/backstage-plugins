@@ -4,9 +4,9 @@ import { useApi } from '@backstage/core-plugin-api';
 import { CatalogApi, catalogApiRef } from '@backstage/plugin-catalog-react';
 import useAsync from 'react-use/lib/useAsync';
 import { GithubRepositoryApi, githubRepositoryApiRef } from '../api';
-import { buildRepositoryRows, collectLanguageOptions, countRepositoriesWithoutLocation } from '../lib/coverage';
+import { buildRepositoryRows } from '../lib/coverage';
 import { parseGeneratedLocation, toOriginLocationRef } from '../lib/locations';
-import { GithubRepositoryInfo, LanguageOption, OrganizationRef, RepositoryLocation, RepositoryRow } from '../types';
+import { GithubRepositoryInfo, RepositoryLocation, RepositoryRow } from '../types';
 
 /**
  * Origin refs are ~95 characters each, so filtering on all of them at once would produce a URL of
@@ -16,11 +16,11 @@ import { GithubRepositoryInfo, LanguageOption, OrganizationRef, RepositoryLocati
 const ORIGIN_FILTER_CHUNK_SIZE = 50;
 
 export interface RepositoryCoverage {
+  /**
+   * Every repository, tracked or not. The perimeter controls that narrow these live with the page,
+   * so the options they offer are derived there rather than here.
+   */
   rows: RepositoryRow[];
-  /** Selectable primary languages, empty until enrichment lands. */
-  languageOptions: LanguageOption[];
-  /** GitHub repositories the provider does not track, i.e. archived repositories and forks. */
-  untrackedRepositoryCount: number;
   /** The repository inventory is still loading; nothing can be rendered yet. */
   inventoryPending: boolean;
   /** Integration status and the coverage KPI are not known yet. */
@@ -83,24 +83,11 @@ async function fetchIngestedEntities(catalogApi: CatalogApi, locations: Reposito
   return responses.flatMap(response => response.items);
 }
 
-function distinctOrganizations(locations: RepositoryLocation[]): OrganizationRef[] {
-  const organizations = new Map<string, OrganizationRef>();
-  for (const { host, org } of locations) {
-    organizations.set(`${host}/${org}`, { host, org });
-  }
-  return [...organizations.values()];
-}
-
 /** Enrichment is best-effort: without it the page still renders, with drift reported as unknown. */
-async function enrichFromGithub(
-  githubApi: GithubRepositoryApi,
-  organizations: OrganizationRef[],
-): Promise<GithubEnrichment> {
+async function enrichFromGithub(githubApi: GithubRepositoryApi): Promise<GithubEnrichment> {
   try {
-    const results = await Promise.all(
-      organizations.map(organization => githubApi.listOrganizationRepositories(organization)),
-    );
-    return { repositories: new Map(results.flat().map(repository => [repository.name, repository])) };
+    const repositories = await githubApi.listOrganizationRepositories();
+    return { repositories: new Map(repositories.map(repository => [repository.name, repository])) };
   } catch (caught) {
     return {
       repositories: new Map(),
@@ -129,7 +116,8 @@ function isSettled<T>(stage: { value?: T; error?: Error }): boolean {
  * data arrives, instead of the whole page waiting on the slowest leg (GitHub, whose pages are
  * necessarily sequential).
  *
- * Ingestion and enrichment both depend only on the inventory, so they run concurrently.
+ * Only ingestion depends on the inventory; enrichment reads the configured organization straight
+ * from GitHub, so it starts on mount and runs alongside both.
  */
 export function useRepositoryCoverage(): RepositoryCoverage {
   const catalogApi = useApi(catalogApiRef);
@@ -144,10 +132,7 @@ export function useRepositoryCoverage(): RepositoryCoverage {
     [catalogApi, locations],
   );
 
-  const enrichment = useAsync(
-    async () => (locations ? enrichFromGithub(githubApi, distinctOrganizations(locations)) : undefined),
-    [githubApi, locations, enrichmentAttempt],
-  );
+  const enrichment = useAsync(() => enrichFromGithub(githubApi), [githubApi, enrichmentAttempt]);
 
   const refreshEnrichment = useCallback(() => {
     githubApi.invalidate();
@@ -168,20 +153,11 @@ export function useRepositoryCoverage(): RepositoryCoverage {
     [locations, ingestion.value, githubRepositories, githubEnrichmentAvailable],
   );
 
-  const languageOptions = useMemo(() => collectLanguageOptions(rows), [rows]);
-
-  const untrackedRepositoryCount = useMemo(
-    () => (locations ? countRepositoriesWithoutLocation(locations, githubRepositories) : 0),
-    [locations, githubRepositories],
-  );
-
   return {
     rows,
-    languageOptions,
-    untrackedRepositoryCount,
     inventoryPending: inventory.loading,
     ingestionPending: inventory.loading || ingestion.loading || !isSettled(ingestion),
-    enrichmentPending: inventory.loading || enrichment.loading || !isSettled(enrichment),
+    enrichmentPending: enrichment.loading || !isSettled(enrichment),
     githubEnrichmentAvailable,
     enrichmentError: enrichment.value?.error,
     error: inventory.error ?? ingestion.error,

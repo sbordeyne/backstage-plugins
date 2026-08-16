@@ -1,17 +1,24 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { JsonObject } from '@backstage/types';
+import { configApiRef } from '@backstage/core-plugin-api';
+import { mockApis, TestApiProvider, wrapInTestApp } from '@backstage/test-utils';
 import { RepositoriesTable, RepositoriesTableProps } from './RepositoriesTable';
+import { selectedTemplateRouteRef } from '../../routes';
 import { scrollToSentinel } from '../../setupTests';
-import { RepositoryRow } from '../../types';
+import { ALL_REPOSITORY_KINDS } from '../../lib/labels';
+import { Perimeter, RepositoryRow } from '../../types';
 
 function row(overrides: Partial<RepositoryRow> & Pick<RepositoryRow, 'repo'>): RepositoryRow {
   return {
-    org: 'example-org',
-    url: `https://github.com/example-org/${overrides.repo}`,
+    org: 'happn-app',
+    url: `https://github.com/happn-app/${overrides.repo}`,
     status: 'not-integrated',
     catalogInfoPaths: [],
     entityCount: 0,
     entityKinds: [],
+    isTracked: true,
+    providerSkips: [],
     ...overrides,
   };
 }
@@ -42,18 +49,43 @@ const ROWS: RepositoryRow[] = [
   }),
 ];
 
-const JAVA_KOTLIN = ['Java', 'Kotlin'];
+function perimeter(overrides: Partial<Perimeter> = {}): Perimeter {
+  return { languages: [], kinds: ALL_REPOSITORY_KINDS, ...overrides };
+}
 
-function renderTable(overrides: Partial<RepositoriesTableProps> = {}) {
+const JAVA_KOTLIN = perimeter({ languages: ['Java', 'Kotlin'] });
+
+const WIZARD_PATH = '/create/templates/:namespace/:templateName';
+
+const CONFIG_WITH_TEMPLATE: JsonObject = {
+  integratedRepositories: {
+    organization: 'happn-app',
+    onboardingTemplateRef: 'template:default/onboard-repository',
+  },
+};
+
+/**
+ * The table reads the configured template and resolves the wizard route, so it needs both an app
+ * context and a config API. `TestApiProvider` composes with the test app's own APIs, overriding
+ * only the config.
+ */
+function renderTable(overrides: Partial<RepositoriesTableProps> = {}, config: JsonObject = CONFIG_WITH_TEMPLATE) {
   const props: RepositoriesTableProps = {
     rows: ROWS,
-    selectedLanguages: [],
+    perimeter: perimeter(),
     inventoryPending: false,
     ingestionPending: false,
     enrichmentPending: false,
     ...overrides,
   };
-  return render(<RepositoriesTable {...props} />);
+  return render(
+    wrapInTestApp(
+      <TestApiProvider apis={[[configApiRef, mockApis.config({ data: config })]]}>
+        <RepositoriesTable {...props} />
+      </TestApiProvider>,
+      { mountedRoutes: { [WIZARD_PATH]: selectedTemplateRouteRef } },
+    ),
+  );
 }
 
 /** The repository name is rendered as the first link of each row. */
@@ -94,55 +126,111 @@ describe('RepositoriesTable', () => {
   it('links each repository to GitHub', () => {
     renderTable();
 
-    expect(screen.getByRole('link', { name: /carbon/ })).toHaveAttribute(
-      'href',
-      'https://github.com/example-org/carbon',
-    );
+    expect(screen.getByRole('link', { name: /carbon/ })).toHaveAttribute('href', 'https://github.com/happn-app/carbon');
   });
 
-  describe('language scope', () => {
+  describe('the kind column', () => {
+    const SKIPPED: RepositoryRow[] = [
+      row({ repo: 'archived', isTracked: false, providerSkips: ['archived'] }),
+      row({ repo: 'both', isTracked: false, providerSkips: ['archived', 'fork'] }),
+      row({ repo: 'empty', isTracked: false, providerSkips: ['no-default-branch'] }),
+      row({ repo: 'fresh', isTracked: false }),
+      row({ repo: 'walked' }),
+    ];
+
+    it('marks each kind with an icon carrying its name', () => {
+      // The column is icons only, so the accessible name is what says which kind it is.
+      renderTable({ rows: SKIPPED, perimeter: perimeter() });
+
+      expect(within(rowFor('archived')).getByTitle('Archived')).toBeInTheDocument();
+      expect(within(rowFor('both')).getByTitle('Archived, Fork')).toBeInTheDocument();
+      expect(within(rowFor('empty')).getByTitle('Empty')).toBeInTheDocument();
+    });
+
+    it('leaves an active repository unmarked, since that is almost every row', () => {
+      renderTable({ rows: SKIPPED, perimeter: perimeter() });
+
+      const active = within(rowFor('walked')).getByTitle('Active');
+      expect(active).toBeInTheDocument();
+      expect(active).toBeEmptyDOMElement();
+    });
+
+    it('distinguishes a repository created since the last sync from an excluded one', () => {
+      renderTable({ rows: SKIPPED, perimeter: perimeter() });
+
+      expect(within(rowFor('fresh')).getByTitle('Awaiting sync')).toBeInTheDocument();
+      expect(within(rowFor('fresh')).queryByTitle('Archived')).not.toBeInTheDocument();
+    });
+
+    it('offers no onboarding action for a repository the provider will never walk', () => {
+      renderTable({ rows: SKIPPED, perimeter: perimeter() });
+
+      expect(within(rowFor('archived')).queryByRole('link', { name: 'Integrate' })).not.toBeInTheDocument();
+      expect(within(rowFor('fresh')).getByRole('link', { name: 'Integrate' })).toBeInTheDocument();
+    });
+  });
+
+  describe('perimeter scope', () => {
+    it('hides repositories a skip control has excluded', () => {
+      const rows = [row({ repo: 'archived', providerSkips: ['archived'] }), row({ repo: 'walked' })];
+
+      renderTable({ rows, perimeter: perimeter({ kinds: ['active', 'fork', 'no-default-branch'] }) });
+
+      expect(renderedRepositories()).toEqual(['walked']);
+    });
+
     it('hides repositories outside the selected languages', () => {
-      renderTable({ selectedLanguages: JAVA_KOTLIN });
+      renderTable({ perimeter: JAVA_KOTLIN });
 
       expect(renderedRepositories()).toEqual(['carbon', 'esctl']);
     });
 
     it('reveals the excluded repositories, marked, through the toggle', async () => {
       const user = userEvent.setup();
-      renderTable({ selectedLanguages: JAVA_KOTLIN });
+      renderTable({ perimeter: JAVA_KOTLIN });
 
-      await user.click(screen.getByRole('switch', { name: /show other languages/i }));
+      await user.click(screen.getByRole('switch', { name: /show repositories outside the perimeter/i }));
 
       expect(renderedRepositories()).toEqual(['carbon', 'esctl', 'salt']);
-      expect(screen.getByText('Outside the selected languages')).toBeInTheDocument();
+      expect(screen.getByText('Outside the perimeter')).toBeInTheDocument();
     });
 
     it('does not offer the toggle when nothing is filtered out', () => {
-      renderTable({ selectedLanguages: [] });
+      renderTable({ perimeter: perimeter() });
 
       expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     });
   });
 
   describe('filtering and sorting', () => {
-    it('narrows to integrated repositories through the binary filter', async () => {
+    it('narrows to integrated repositories through the binary grouping', async () => {
       const user = userEvent.setup();
       renderTable();
 
-      await user.click(screen.getByRole('button', { name: /catalog integration/i }));
-      await user.click(screen.getByRole('option', { name: 'Integrated' }));
+      await user.click(screen.getByRole('button', { name: /catalog status/i }));
+      await user.click(screen.getByRole('option', { name: 'Integrated — any' }));
 
       expect(renderedRepositories()).toEqual(['carbon']);
     });
 
-    it('narrows to non-integrated repositories through the binary filter', async () => {
+    it('narrows to non-integrated repositories through the binary grouping', async () => {
       const user = userEvent.setup();
       renderTable();
 
-      await user.click(screen.getByRole('button', { name: /catalog integration/i }));
-      await user.click(screen.getByRole('option', { name: 'Not integrated' }));
+      await user.click(screen.getByRole('button', { name: /catalog status/i }));
+      await user.click(screen.getByRole('option', { name: 'Not integrated — any' }));
 
       expect(renderedRepositories()).toEqual(['esctl', 'salt']);
+    });
+
+    it('narrows to a single status through the same control', async () => {
+      const user = userEvent.setup();
+      renderTable();
+
+      await user.click(screen.getByRole('button', { name: /catalog status/i }));
+      await user.click(screen.getByRole('option', { name: 'Drift' }));
+
+      expect(renderedRepositories()).toEqual(['esctl']);
     });
 
     it('filters by repository name', async () => {
@@ -204,8 +292,8 @@ describe('RepositoriesTable', () => {
       act(() => scrollToSentinel());
       expect(renderedRepositories()).toHaveLength(40);
 
-      await user.click(screen.getByRole('button', { name: /catalog integration/i }));
-      await user.click(screen.getByRole('option', { name: 'Not integrated' }));
+      await user.click(screen.getByRole('button', { name: /catalog status/i }));
+      await user.click(screen.getByRole('option', { name: 'Not integrated — any' }));
 
       expect(renderedRepositories()).toHaveLength(20);
     });
@@ -234,6 +322,56 @@ describe('RepositoriesTable', () => {
       expect(renderedRepositories()).toEqual(['carbon', 'esctl', 'salt']);
       expect(screen.queryByText('Java')).not.toBeInTheDocument();
       expect(screen.queryByText('2026-07-30')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('onboarding action', () => {
+    function integrateLinkIn(repo: string): HTMLElement | null {
+      return within(rowFor(repo)).queryByRole('link', { name: 'Integrate' });
+    }
+
+    it('offers the action only for repositories that are not in the catalog', () => {
+      renderTable();
+
+      expect(integrateLinkIn('salt')).toBeInTheDocument();
+      expect(integrateLinkIn('carbon')).not.toBeInTheDocument();
+      // Drift means a catalog-info.yaml already exists, so a pull request adding one would conflict.
+      expect(integrateLinkIn('esctl')).not.toBeInTheDocument();
+    });
+
+    it('links to the scaffolder wizard with the repository prefilled', () => {
+      renderTable();
+
+      const href = integrateLinkIn('salt')?.getAttribute('href') ?? '';
+      const url = new URL(href, 'http://localhost');
+
+      expect(url.pathname).toBe('/create/templates/default/onboard-repository');
+      expect(JSON.parse(url.searchParams.get('formData') ?? '{}')).toEqual({
+        repoUrl: 'github.com?owner=happn-app&repo=salt',
+        name: 'salt',
+        defaultBranch: 'master',
+      });
+    });
+
+    it('waits for ingestion, since a repository looks uncovered until its entities are joined', () => {
+      renderTable({ ingestionPending: true });
+
+      expect(screen.queryByRole('link', { name: 'Integrate' })).not.toBeInTheDocument();
+    });
+
+    it('falls back to the plain catalog-info cell when no template is configured', () => {
+      renderTable({}, { integratedRepositories: { organization: 'happn-app' } });
+
+      expect(screen.queryByRole('link', { name: 'Integrate' })).not.toBeInTheDocument();
+      // The repository name is a row header, so the catalog-info.yaml cell is the second plain cell.
+      const catalogInfoCell = within(rowFor('salt')).getAllByRole('gridcell')[1];
+      expect(within(catalogInfoCell).getByText('—')).toBeInTheDocument();
+    });
+
+    it('leaves the repository name as the first link of its row', () => {
+      renderTable();
+
+      expect(renderedRepositories()).toEqual(['carbon', 'esctl', 'salt']);
     });
   });
 });

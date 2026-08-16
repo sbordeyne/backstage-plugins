@@ -17,23 +17,19 @@ export type IntegrationStatus =
   /** No entities, and GitHub enrichment was unavailable so we cannot tell drift apart. */
   | 'unknown';
 
-/** The binary "integrated / not integrated" filter driving the table and the KPI. */
-export type CoverageFilter = 'all' | 'integrated' | 'not-integrated';
+/**
+ * The table's single status filter.
+ *
+ * It carries both granularities the page needs: the binary integrated / not integrated grouping
+ * required by IDP-47, and each individual status. Two separate controls said the same thing twice.
+ */
+export type StatusFilter = 'all' | 'covered' | 'uncovered' | IntegrationStatus;
 
 /**
  * Option id standing for repositories where GitHub reports no primary language, so that they stay
  * selectable rather than being silently unfilterable.
  */
 export const UNKNOWN_LANGUAGE = '__unknown__';
-
-/**
- * Languages selected by default when `integratedRepositories.defaultLanguages` is not configured.
- *
- * Empty means "all languages", which is the only neutral choice for an installation whose
- * perimeter we know nothing about. Set the config key to pin the headline coverage figure to a
- * fixed set of languages so it stays comparable week to week.
- */
-export const DEFAULT_LANGUAGES: readonly string[] = [];
 
 /** A selectable primary language, derived from the repositories actually present. */
 export interface LanguageOption {
@@ -43,11 +39,54 @@ export interface LanguageOption {
   repositoryCount: number;
 }
 
+/**
+ * A reason the catalog provider does not walk a repository.
+ *
+ * These are the three the `github` provider applies with no `filters` block configured: archived
+ * repositories, forks, and repositories with no default branch.
+ */
+export type ProviderSkip = 'archived' | 'fork' | 'no-default-branch';
+
+/**
+ * What a repository is, from the provider's point of view.
+ *
+ * `active` is the one the provider actually walks — everything else is a reason it does not. A
+ * repository can be more than one at once: an archived fork is both.
+ */
+export type RepositoryKind = 'active' | ProviderSkip;
+
+/** A selectable repository kind, with how many repositories selecting it would bring in. */
+export interface KindOption {
+  id: RepositoryKind;
+  label: string;
+  repositoryCount: number;
+}
+
+/**
+ * The population the page describes: the rows *and* the denominator of the coverage figure.
+ *
+ * Perimeter controls move both together, so the headline figure always describes exactly what is on
+ * screen. The table's own status filter and search are reading aids and deliberately not part of it.
+ */
+export interface Perimeter {
+  /** Selected primary languages. Empty means every language. */
+  languages: string[];
+  /** Selected repository kinds. Empty means every kind. */
+  kinds: RepositoryKind[];
+}
+
 /** A repository as described by the GitHub GraphQL API. */
 export interface GithubRepositoryInfo {
   name: string;
+  /** The organization or user the repository belongs to. */
+  owner: string;
   url: string;
   isPrivate: boolean;
+  isArchived: boolean;
+  isFork: boolean;
+  defaultBranch?: string;
+  /** False for an empty repository, which the provider skips along with archived ones and forks. */
+  hasDefaultBranch: boolean;
   pushedAt?: string;
   primaryLanguage?: string;
   /** True when a `catalog-info.yaml` exists at the root of the default branch. */
@@ -56,18 +95,10 @@ export interface GithubRepositoryInfo {
 
 /** A repository discovered from a `generated-*` `Location` entity. */
 export interface RepositoryLocation {
-  /** SCM host, so GitHub Enterprise targets keep working. */
-  host: string;
   org: string;
   repo: string;
   /** The raw `spec.target`, used to join child entities by origin annotation. */
   target: string;
-}
-
-/** Identifies the organization to enumerate on a given SCM host. */
-export interface OrganizationRef {
-  host: string;
-  org: string;
 }
 
 /** One row of the repositories table. */
@@ -85,9 +116,15 @@ export interface RepositoryRow {
   primaryLanguage?: string;
   pushedAt?: string;
   isPrivate?: boolean;
+  /** Whether the provider emitted a `Location` for this repository. */
+  isTracked: boolean;
+  /** Why the provider does not walk it, sorted. Empty when it does. */
+  providerSkips: ProviderSkip[];
+  /** The default branch the provider would have walked. */
+  defaultBranch?: string;
 }
 
-/** Aggregated coverage figures for the selected languages. */
+/** Aggregated coverage figures for the repositories inside the perimeter. */
 export interface CoverageStats {
   total: number;
   integrated: number;
@@ -97,7 +134,7 @@ export interface CoverageStats {
   unknown: number;
   /** Total catalog entities produced by the repositories in scope. */
   entityCount: number;
-  /** The headline KPI: the share of repositories not covered by the catalog. */
+  /** The headline KPI required by IDP-47. */
   uncoveredPercentage: number;
   coveredPercentage: number;
 }

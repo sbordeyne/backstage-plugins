@@ -1,18 +1,17 @@
-import { DEFAULT_LANGUAGES, LanguageOption, UNKNOWN_LANGUAGE } from '../types';
+import { LanguageOption, UNKNOWN_LANGUAGE } from '../types';
 
 /**
- * The language selection to start from, out of `configuredLanguages`.
+ * The language selection to start from.
  *
- * Pinning the selection keeps the headline coverage figure comparable week to week, but only for
- * the languages that actually occur — otherwise an empty selection is returned, which means "all
- * languages" rather than an empty page. Matching is case-insensitive because the ids come from
- * GitHub verbatim.
+ * A configured default only applies to the languages that actually occur, so a selection that would
+ * match nothing collapses to the empty one, which means "all languages" rather than an empty page.
+ * Matching is case-insensitive because the ids come from GitHub verbatim.
  */
 export function resolveDefaultLanguages(
   options: readonly LanguageOption[],
-  configuredLanguages: readonly string[] = DEFAULT_LANGUAGES,
+  defaultLanguages: readonly string[],
 ): string[] {
-  const wanted = configuredLanguages.map(language => language.toLowerCase());
+  const wanted = defaultLanguages.map(language => language.toLowerCase());
   return options.filter(option => wanted.includes(option.id.toLowerCase())).map(option => option.id);
 }
 

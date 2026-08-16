@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { alertApiRef } from '@backstage/core-plugin-api';
 import { TestApiProvider } from '@backstage/test-utils';
 import { CoveragePanel, CoveragePanelProps } from './CoveragePanel';
-import { CoverageStats, LanguageOption } from '../../types';
+import { ALL_REPOSITORY_KINDS } from '../../lib/labels';
+import { CoverageStats, KindOption, LanguageOption, Perimeter } from '../../types';
 
 const STATS: CoverageStats = {
   total: 148,
@@ -23,15 +24,25 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
   { id: 'Go', label: 'Go', repositoryCount: 3 },
 ];
 
+const KIND_OPTIONS: KindOption[] = [
+  { id: 'active', label: 'Active', repositoryCount: 107 },
+  { id: 'archived', label: 'Archived', repositoryCount: 37 },
+  { id: 'fork', label: 'Fork', repositoryCount: 4 },
+];
+
+function perimeter(overrides: Partial<Perimeter> = {}): Perimeter {
+  return { languages: ['Java'], kinds: ALL_REPOSITORY_KINDS, ...overrides };
+}
+
 const alertApi = { post: jest.fn(), alert$: jest.fn() };
 
 function renderPanel(overrides: Partial<CoveragePanelProps> = {}) {
   const props: CoveragePanelProps = {
     stats: STATS,
     languageOptions: LANGUAGE_OPTIONS,
-    selectedLanguages: ['Java'],
-    onLanguagesChange: jest.fn(),
-    untrackedRepositoryCount: 12,
+    kindOptions: KIND_OPTIONS,
+    perimeter: perimeter(),
+    onPerimeterChange: jest.fn(),
     ingestionPending: false,
     enrichmentPending: false,
     githubEnrichmentAvailable: true,
@@ -52,7 +63,7 @@ describe('CoveragePanel', () => {
     jest.clearAllMocks();
   });
 
-  it('leads with the uncovered percentage', () => {
+  it('leads with the uncovered percentage, as IDP-47 requires', () => {
     renderPanel();
 
     expect(screen.getByText('47.3 % not integrated')).toBeInTheDocument();
@@ -60,15 +71,21 @@ describe('CoveragePanel', () => {
   });
 
   it('names the active language scope', () => {
-    renderPanel({ selectedLanguages: ['Java', 'Kotlin'] });
+    renderPanel({ perimeter: perimeter({ languages: ['Java', 'Kotlin'] }) });
 
-    expect(screen.getByText(/languages: Java, Kotlin/)).toBeInTheDocument();
+    expect(screen.getByText(/languages Java, Kotlin/)).toBeInTheDocument();
   });
 
   it('describes an empty selection as all languages', () => {
-    renderPanel({ selectedLanguages: [] });
+    renderPanel({ perimeter: perimeter({ languages: [] }) });
 
-    expect(screen.getByText(/languages: all languages/)).toBeInTheDocument();
+    expect(screen.getByText(/languages all languages/)).toBeInTheDocument();
+  });
+
+  it('names the kinds the figure covers, so it is never read out of context', () => {
+    renderPanel({ perimeter: perimeter({ kinds: ['active'] }) });
+
+    expect(screen.getByText(/active repositories/)).toBeInTheDocument();
   });
 
   it('exposes the coverage bar as a meter', () => {
@@ -79,12 +96,56 @@ describe('CoveragePanel', () => {
 
   it('emits the full new selection when another language is picked', async () => {
     const user = userEvent.setup();
-    const { onLanguagesChange } = renderPanel({ selectedLanguages: ['Java'] });
+    const { onPerimeterChange } = renderPanel({ perimeter: perimeter({ languages: ['Java'] }) });
 
     await user.click(screen.getByRole('button', { name: /primary languages/i }));
     await user.click(screen.getByRole('option', { name: /Kotlin/ }));
 
-    expect(onLanguagesChange).toHaveBeenCalledWith(['Java', 'Kotlin']);
+    expect(onPerimeterChange).toHaveBeenCalledWith(expect.objectContaining({ languages: ['Java', 'Kotlin'] }));
+  });
+
+  describe('the repository kind selector', () => {
+    it('lists each kind with how many repositories it holds', async () => {
+      const user = userEvent.setup();
+      renderPanel();
+
+      await user.click(screen.getByRole('button', { name: /repository kinds/i }));
+
+      expect(screen.getByRole('option', { name: 'Active (107)' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Archived (37)' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Fork (4)' })).toBeInTheDocument();
+    });
+
+    it('offers no option for a kind the organization has no repository for', async () => {
+      const user = userEvent.setup();
+      renderPanel();
+
+      await user.click(screen.getByRole('button', { name: /repository kinds/i }));
+
+      expect(screen.queryByRole('option', { name: /Empty/ })).not.toBeInTheDocument();
+    });
+
+    it('emits the full new selection when another kind is picked', async () => {
+      const user = userEvent.setup();
+      const { onPerimeterChange } = renderPanel({ perimeter: perimeter({ kinds: ['active'] }) });
+
+      await user.click(screen.getByRole('button', { name: /repository kinds/i }));
+      await user.click(screen.getByRole('option', { name: /Archived/ }));
+
+      expect(onPerimeterChange).toHaveBeenCalledWith(expect.objectContaining({ kinds: ['active', 'archived'] }));
+    });
+
+    it('is disabled when GitHub is unavailable, like the language selector', () => {
+      renderPanel({ githubEnrichmentAvailable: false });
+
+      expect(screen.getByRole('button', { name: /repository kinds/i })).toBeDisabled();
+    });
+
+    it('is not rendered until enrichment lands', () => {
+      renderPanel({ enrichmentPending: true });
+
+      expect(screen.queryByRole('button', { name: /repository kinds/i })).not.toBeInTheDocument();
+    });
   });
 
   it('shows each language with its repository count', async () => {

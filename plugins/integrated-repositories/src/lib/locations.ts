@@ -6,6 +6,8 @@ const CATALOG_INFO_FILENAME = 'catalog-info.yaml';
 const LOCATION_TYPE_PREFIX = 'url:';
 /** GitHub puts a resolved file under `/tree/` and a directly-read one under `/blob/`. */
 const REPOSITORY_FILE_MARKERS = ['tree', 'blob'];
+/** This repo's own scaffolder templates, matched on the directory rather than on a specific glob. */
+const TEMPLATES_PATH_SEGMENT = '/templates/';
 
 function safeParseUrl(value: string): URL | undefined {
   try {
@@ -21,6 +23,26 @@ function stripLocationTypePrefix(locationRef: string): string {
 }
 
 /**
+ * Whether an entity is a `Location` the GitHub catalog provider emitted, as opposed to one a
+ * `catalog-info.yaml` declares by hand.
+ *
+ * `kind` and `metadata.name` are enough to decide, so this works on the entities fetched for the
+ * ingestion stage, which do not carry `spec`.
+ *
+ * `spec.target` is only consulted to exclude this repo's own templates location: `catalog.locations`
+ * entries go through the same `locationSpecToLocationEntity`, so they carry the `generated-` prefix
+ * too. That entry always has a singular `spec.target`, never the plural `spec.targets` a hand-written
+ * `Location` may declare.
+ */
+export function isGeneratedLocation(entity: Entity): boolean {
+  const isLocation = entity.kind === 'Location';
+  const hasGeneratedNamePrefix = entity.metadata.name.startsWith(GENERATED_NAME_PREFIX);
+  const locationTarget = typeof entity.spec?.target === 'string' ? entity.spec.target : '';
+  const hasDeveloperPortalTemplateTarget = locationTarget.includes(TEMPLATES_PATH_SEGMENT);
+  return isLocation && hasGeneratedNamePrefix && !hasDeveloperPortalTemplateTarget;
+}
+
+/**
  * Reads the repository out of a `Location` entity emitted by the GitHub catalog provider.
  *
  * Those targets look like `https://github.com/<org>/<repo>/blob/<branch>/<catalogPath>`, where
@@ -32,10 +54,8 @@ function stripLocationTypePrefix(locationRef: string): string {
  * `catalog-info.yaml`.
  */
 export function parseGeneratedLocation(entity: Entity): RepositoryLocation | undefined {
-  if (entity.kind !== 'Location' || entity.spec?.type !== 'url') {
-    return undefined;
-  }
-  if (!entity.metadata.name.startsWith(GENERATED_NAME_PREFIX)) {
+  const isUrl = entity.spec?.type === 'url';
+  if (!isUrl || !isGeneratedLocation(entity)) {
     return undefined;
   }
 
@@ -55,7 +75,7 @@ export function parseGeneratedLocation(entity: Entity): RepositoryLocation | und
     return undefined;
   }
 
-  return { host: url.host, org, repo, target };
+  return { org, repo, target };
 }
 
 /**

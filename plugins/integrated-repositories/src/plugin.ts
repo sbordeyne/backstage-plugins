@@ -1,7 +1,14 @@
-import { createApiFactory, createPlugin, createRoutableExtension, fetchApiRef } from '@backstage/core-plugin-api';
-import { scmAuthApiRef, scmIntegrationsApiRef } from '@backstage/integration-react';
+import {
+  configApiRef,
+  createApiFactory,
+  createPlugin,
+  createRoutableExtension,
+  fetchApiRef,
+} from '@backstage/core-plugin-api';
+import { scmAuthApiRef } from '@backstage/integration-react';
 import { GithubGraphqlRepositoryClient, githubRepositoryApiRef } from './api';
-import { rootRouteRef } from './routes';
+import { readOrganization } from './config';
+import { rootRouteRef, selectedTemplateRouteRef } from './routes';
 
 export const integratedRepositoriesPlugin = createPlugin({
   id: 'integrated-repositories',
@@ -10,15 +17,18 @@ export const integratedRepositoriesPlugin = createPlugin({
       api: githubRepositoryApiRef,
       deps: {
         scmAuthApi: scmAuthApiRef,
-        scmIntegrations: scmIntegrationsApiRef,
         fetchApi: fetchApiRef,
+        configApi: configApiRef,
       },
-      factory: ({ scmAuthApi, scmIntegrations, fetchApi }) =>
-        new GithubGraphqlRepositoryClient(scmAuthApi, scmIntegrations, fetchApi),
+      factory: ({ scmAuthApi, fetchApi, configApi }) =>
+        new GithubGraphqlRepositoryClient(scmAuthApi, fetchApi, readOrganization(configApi)),
     }),
   ],
   routes: {
     root: rootRouteRef,
+  },
+  externalRoutes: {
+    selectedTemplate: selectedTemplateRouteRef,
   },
 });
 
