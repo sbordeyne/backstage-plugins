@@ -88,18 +88,47 @@ repositories** button is the accessible equivalent and the fallback when no obse
 ## Configuration
 
 Everything the page needs is derived from the catalog and the configured GitHub integration, so
-there is nothing to configure to get it working. One optional key pins the initial language filter:
+there is nothing to configure to get it working. Every key is optional:
 
 ```yaml
 integratedRepositories:
+  # Organization enumerated to surface repositories that never produced an entity. Without it the
+  # page falls back to the catalog-only view.
+  organization: octokit
+
   # Selected on first load, matched case-insensitively against the languages GitHub reports.
   # Only languages that actually occur are selected; if none do, the selection stays empty,
   # which means "all languages". Defaults to [].
-  defaultLanguages: ['Java', 'Kotlin']
+  defaultLanguages: ['Java', 'Python']
+
+  # Template offered as the onboarding action on uncovered repositories. Kind defaults to
+  # `template`, namespace to `default`. Unset — or unparseable — means no action is offered.
+  onboardingTemplateRef: template:default/onboard-repository
+
+  # The form the wizard opens with, keyed by that template's own parameter names.
+  onboardingTemplateDefaults:
+    repoUrl: 'github.com?owner={{ org }}&repo={{ repo }}'
+    name: '{{ repo }}'
+    defaultBranch: '{{ defaultBranch | master }}'
 ```
 
-Pin it when the headline coverage figure should cover a fixed perimeter and stay comparable over
-time; leave it unset to report on every repository.
+Pin `defaultLanguages` when the headline coverage figure should cover a fixed perimeter and stay
+comparable over time; leave it unset to report on every repository.
+
+`onboardingTemplateDefaults` is passed to the scaffolder through the `formData` query parameter the
+wizard parses on mount, and defaults to the block shown above — the shape the stock
+`onboard-repository` template expects, with `repoUrl` in the form `RepoUrlPicker` parses. Set it when
+your template names its parameters differently.
+
+Every string in it is expanded against the repository the action was triggered from, over the fields
+`repo`, `org`, `url`, `defaultBranch`, `primaryLanguage` and `status`. A placeholder may carry a
+fallback for when the field is missing, written `{{ defaultBranch | master }}`; without one, a
+missing field expands to the empty string. Braces are mustache-style rather than `${...}`, which the
+config loader would substitute out of `app-config.yaml` first. Non-string values — booleans, numbers,
+lists, one level of nested object — pass through untouched.
+
+Only prefill what a repository actually determines. Owner, system and lifecycle are not derivable
+from one, and a wrong default in a picker is worse than an empty one.
 
 ## Development
 

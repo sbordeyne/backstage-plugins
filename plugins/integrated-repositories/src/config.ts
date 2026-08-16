@@ -1,7 +1,22 @@
 import { parseEntityRef } from '@backstage/catalog-model';
 import { ConfigApi } from '@backstage/core-plugin-api';
+import { JsonObject } from '@backstage/types';
 
 const CONFIG_ROOT = 'integratedRepositories';
+
+/**
+ * The prefill for the stock `onboard-repository` template, used when an installation configures no
+ * defaults of its own. Keys are the template's own parameter names, and `repoUrl` is the shape
+ * `RepoUrlPicker` parses.
+ *
+ * Only the repository is prefilled. Owner, system and lifecycle are not derivable from a repository,
+ * and a wrong default in a picker is worse than an empty one.
+ */
+export const DEFAULT_ONBOARDING_TEMPLATE_DEFAULTS: JsonObject = {
+  repoUrl: 'github.com?owner={{ org }}&repo={{ repo }}',
+  name: '{{ repo }}',
+  defaultBranch: '{{ defaultBranch | master }}',
+};
 
 /** The onboarding template, in the shape the scaffolder's wizard route expects. */
 export interface OnboardingTemplate {
@@ -47,4 +62,20 @@ export function readOnboardingTemplate(configApi: ConfigApi): OnboardingTemplate
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The form values the onboarding wizard opens with, keyed by the template's own parameter names.
+ * Strings still carry their `{{ field }}` placeholders — see `buildTemplatePrefill`.
+ *
+ * Falls back to {@link DEFAULT_ONBOARDING_TEMPLATE_DEFAULTS} when nothing is configured. A value
+ * that is not an object is ignored the same way, because a malformed key should not cost the page
+ * its onboarding action.
+ */
+export function readOnboardingTemplateDefaults(configApi: ConfigApi): JsonObject {
+  const configured = configApi.getOptional(`${CONFIG_ROOT}.onboardingTemplateDefaults`);
+  if (!configured || typeof configured !== 'object' || Array.isArray(configured)) {
+    return DEFAULT_ONBOARDING_TEMPLATE_DEFAULTS;
+  }
+  return configured;
 }

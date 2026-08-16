@@ -51,6 +51,7 @@
     "@backstage/integration": "backstage:^",
     "@backstage/integration-react": "backstage:^",
     "@backstage/plugin-catalog-react": "backstage:^",
+    "@backstage/types": "backstage:^",
     "@backstage/ui": "backstage:^",
     "@material-ui/icons": "^4.11.3",
     "react-use": "^17.2.4"

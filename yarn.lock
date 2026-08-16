@@ -8930,6 +8930,7 @@ __metadata:
     "@backstage/integration-react": "backstage:^"
     "@backstage/plugin-catalog-react": "backstage:^"
     "@backstage/test-utils": "backstage:^"
+    "@backstage/types": "backstage:^"
     "@backstage/ui": "backstage:^"
     "@material-ui/icons": "npm:^4.11.3"
     "@testing-library/dom": "npm:^9.0.0"

@@ -70,6 +70,27 @@ describe('useIntegrateTemplateLink', () => {
     expect(prefillOf(link?.({ ...SALT, defaultBranch: undefined }) ?? '')).toMatchObject({ defaultBranch: 'master' });
   });
 
+  it('prefills the configured parameters instead of the stock ones', () => {
+    const link = renderLink({
+      config: {
+        integratedRepositories: {
+          onboardingTemplateRef: 'template:default/onboard-repository',
+          onboardingTemplateDefaults: {
+            repository: '{{ org }}/{{ repo }}',
+            branch: '{{ defaultBranch | trunk }}',
+            createPullRequest: true,
+          },
+        },
+      },
+    });
+
+    expect(prefillOf(link?.(SALT) ?? '')).toEqual({
+      repository: 'happn-app/salt',
+      branch: 'trunk',
+      createPullRequest: true,
+    });
+  });
+
   it('defaults the kind and honours a namespaced template ref', () => {
     const link = renderLink({
       config: { integratedRepositories: { onboardingTemplateRef: 'tools/onboard-repository' } },

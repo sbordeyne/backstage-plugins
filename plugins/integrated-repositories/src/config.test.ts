@@ -1,7 +1,13 @@
 import { ConfigApi } from '@backstage/core-plugin-api';
 import { JsonObject } from '@backstage/types';
 import { mockApis } from '@backstage/test-utils';
-import { readDefaultLanguages, readOnboardingTemplate, readOrganization } from './config';
+import {
+  DEFAULT_ONBOARDING_TEMPLATE_DEFAULTS,
+  readDefaultLanguages,
+  readOnboardingTemplate,
+  readOnboardingTemplateDefaults,
+  readOrganization,
+} from './config';
 
 function configApi(integratedRepositories: JsonObject | undefined): ConfigApi {
   return mockApis.config({ data: { integratedRepositories } });
@@ -50,5 +56,25 @@ describe('readOnboardingTemplate', () => {
 
   it('is undefined for a ref that cannot be parsed, rather than throwing through the render', () => {
     expect(readOnboardingTemplate(configApi({ onboardingTemplateRef: 'template:default/' }))).toBeUndefined();
+  });
+});
+
+describe('readOnboardingTemplateDefaults', () => {
+  it('reads the configured prefill', () => {
+    const onboardingTemplateDefaults = { repository: '{{ org }}/{{ repo }}', autoApprove: true };
+
+    expect(readOnboardingTemplateDefaults(configApi({ onboardingTemplateDefaults }))).toEqual(
+      onboardingTemplateDefaults,
+    );
+  });
+
+  it('falls back to the stock template shape when nothing is configured', () => {
+    expect(readOnboardingTemplateDefaults(configApi({}))).toEqual(DEFAULT_ONBOARDING_TEMPLATE_DEFAULTS);
+  });
+
+  it('falls back rather than propagating a value that is not an object', () => {
+    expect(readOnboardingTemplateDefaults(configApi({ onboardingTemplateDefaults: ['repoUrl'] }))).toEqual(
+      DEFAULT_ONBOARDING_TEMPLATE_DEFAULTS,
+    );
   });
 });

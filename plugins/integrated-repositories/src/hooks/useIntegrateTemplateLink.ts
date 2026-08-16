@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { configApiRef, useApi, useRouteRef } from '@backstage/core-plugin-api';
-import { readOnboardingTemplate } from '../config';
+import { readOnboardingTemplate, readOnboardingTemplateDefaults } from '../config';
+import { buildTemplatePrefill } from '../lib/prefill';
 import { selectedTemplateRouteRef } from '../routes';
 import { RepositoryRow } from '../types';
 
@@ -14,13 +15,14 @@ export type IntegrateTemplateLink = (row: RepositoryRow) => string;
  * Undefined when the wizard route is unbound or no template is configured, so callers drop the
  * affordance entirely rather than offering an action that cannot work.
  *
- * Only the repository is prefilled. Owner, system and lifecycle are not derivable from a repository,
- * and a wrong default in a picker is worse than an empty one.
+ * Which fields are prefilled is configuration: `integratedRepositories.onboardingTemplateDefaults`
+ * keys the values by the template's own parameter names and interpolates the repository into them.
  */
 export function useIntegrateTemplateLink(): IntegrateTemplateLink | undefined {
   const configApi = useApi(configApiRef);
   const templateRoute = useRouteRef(selectedTemplateRouteRef);
   const template = useMemo(() => readOnboardingTemplate(configApi), [configApi]);
+  const defaults = useMemo(() => readOnboardingTemplateDefaults(configApi), [configApi]);
 
   return useMemo(() => {
     if (!templateRoute || !template) {
@@ -28,16 +30,11 @@ export function useIntegrateTemplateLink(): IntegrateTemplateLink | undefined {
     }
 
     return (row: RepositoryRow): string => {
-      // Keys are the template's own parameter names. `repoUrl` is the shape `RepoUrlPicker` parses.
-      const formData = {
-        repoUrl: `github.com?owner=${row.org}&repo=${row.repo}`,
-        name: row.repo,
-        defaultBranch: row.defaultBranch ?? 'master',
-      };
+      const formData = buildTemplatePrefill(defaults, row);
       // Encoding the JSON as a search parameter escapes its inner `&`, which would otherwise split
       // the query string.
       const query = new URLSearchParams({ formData: JSON.stringify(formData) });
       return `${templateRoute(template)}?${query.toString()}`;
     };
-  }, [templateRoute, template]);
+  }, [templateRoute, template, defaults]);
 }
