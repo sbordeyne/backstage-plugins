@@ -5,8 +5,7 @@
   "license": "Apache-2.0",
   "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/secure-share/",
   "repository": {
-    "type": "git",
-    "url": "git+https://github.com/sbordeyne/backstage-plugins.git",
+    "url": "https://github.com/sbordeyne/backstage-plugins",
     "directory": "plugins/secure-share"
   },
   "bugs": "https://github.com/sbordeyne/backstage-plugins/issues",
@@ -24,10 +23,6 @@
     "access": "public",
     "main": "dist/index.esm.js",
     "types": "dist/index.d.ts"
-  },
-  "repository": {
-    "url": "https://github.com/sbordeyne/backstage-plugins",
-    "directory": "plugins/secure-share"
   },
   "backstage": {
     "role": "frontend-plugin",
