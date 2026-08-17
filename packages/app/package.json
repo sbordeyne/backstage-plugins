@@ -51,6 +51,7 @@
     "@sbordeyne/backstage-plugin-bruno": "workspace:^",
     "@sbordeyne/backstage-plugin-integrated-repositories": "workspace:^",
     "@sbordeyne/backstage-plugin-secure-share": "workspace:^",
+    "@sbordeyne/backstage-plugin-should-i-deploy-today": "workspace:^",
     "@sbordeyne/backstage-plugin-toolbox-module-gotemplate": "workspace:^",
     "react": "^18.0.2",
     "react-dom": "^18.0.2",
