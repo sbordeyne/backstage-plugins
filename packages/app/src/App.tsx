@@ -14,6 +14,7 @@ import orgPlugin from '@backstage/plugin-org/alpha';
 import homePlugin from '@backstage/plugin-home/alpha';
 import userSettingsPlugin from '@backstage/plugin-user-settings/alpha';
 import appVisualizerPlugin from '@backstage/plugin-app-visualizer';
+import shouldIDeployTodayPlugin from '@sbordeyne/backstage-plugin-should-i-deploy-today';
 
 // The toolbox exposes its frontend plugin from the package root rather than an
 // /alpha subpath, because v2 is new-frontend-system only.
@@ -92,6 +93,7 @@ const app = createApp({
     homePlugin,
     userSettingsPlugin,
     appVisualizerPlugin,
+    shouldIDeployTodayPlugin,
 
     // The plugin under development, plus the toolbox it plugs into.
     toolboxPlugin,

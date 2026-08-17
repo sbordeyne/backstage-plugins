@@ -1,0 +1,153 @@
+{
+  "to_deploy": [
+    "I don't see why not",
+    "It's a free country",
+    "Go ahead my friend!",
+    "Go for it",
+    "Go go go go!",
+    "Let's do it!",
+    "Ship it! 🚢",
+    "Go with the flow 🌊",
+    "Harder better faster stronger",
+    "Rock on!",
+    "Make me proud",
+    "Break a leg!",
+    "This Is the Way",
+    "Strike First, Strike Hard, No Mercy!"
+  ],
+  "to_not_deploy": [
+    "I wouldn't recommend it",
+    "No, it's Friday",
+    "What about Monday?",
+    "Not today",
+    "Nope",
+    "Why?",
+    "Did the tests pass? Probably not",
+    "¯\\_(ツ)_/¯",
+    "😹",
+    "No",
+    "No. Breathe and count to 10, start again",
+    "I'd rather have ice-cream 🍦",
+    "How could you? 🥺",
+    "Some people just want to watch the world burn 🔥",
+    "You like fire don't you?",
+    "The bugs are just waiting for you"
+  ],
+  "thursday_afternoon": [
+    "You still want to sleep?",
+    "Call your partner!",
+    "Gonna stay late today?",
+    "Tell your boss that you found a bug and go home",
+    "What about Monday?",
+    "I wouldn't recommend it",
+    "Not today",
+    "Nope",
+    "No. Breathe and count to 10, start again"
+  ],
+  "friday_afternoon": [
+    "Not by any chance",
+    "U mad?",
+    "What you are thinking?",
+    "No no no no no no no no",
+    "How do you feel about working nights and weekends?",
+    "🔥 🚒 🚨 ⛔️ 🔥 🚒 🚨 ⛔️ 🔥 🚒 🚨 ⛔️",
+    "No! God! Please! No",
+    "No no no no no no no!",
+    "Keep dreaming darling",
+    "Why why Bro why?",
+    "But but but... why?",
+    "Deploys are for Monday, so you can fix them till Friday.",
+    "YOLO ! You only live once !",
+    "Error in line NaN Col -2 unexpected 'undefined'",
+    "us-east-1 is not a valid region",
+    "500 Internal Server Error",
+    "Something went wrong"
+  ],
+  "friday_13th": [
+    "Man, really? It's friday the 13th!",
+    "Do you believe in bad luck?",
+    "Jason is watching you",
+    "If you want to spend your weekend in Crystal Lake, go ahead",
+    "To pray is no help if you take this bad decision",
+    "Did you look at the calendar today?",
+    "📅 Friday the 13th. What do you think about it?",
+    "Just no!",
+    "But but but... why?"
+  ],
+  "afternoon": [
+    "You still want to sleep?",
+    "Call your partner!",
+    "Gonna stay late today?",
+    "Tomorrow?",
+    "No",
+    "Tell your boss that you found a bug and go home",
+    "You have full day ahead of you tomorrow!",
+    "Trust me, they will be much happier if it wasn't broken for a night",
+    "How much do you trust your logging tools?"
+  ],
+  "weekend": [
+    "Go home, you're drunk",
+    "How about Monday?",
+    "Beer?",
+    "Drunk development is not a good idea!",
+    "I see you deployed on Friday",
+    "Told you that Monday would be a better idea!",
+    "There are 2^1000 other ideas."
+  ],
+  "holiday": {
+    "christmas_day": [
+      "No, Rudolf will hunt you down 🦌 ",
+      "Just watch Home Alone today",
+      "Shouldn't you be preparing a christmas dinner?"
+    ],
+    "new_years_day": [
+      "Happy New Year! \n deploy the 2nd of january",
+      "Aren't you hungover?",
+      "Take another glass of champagne 🥂",
+      "Celebrate today, deploy tomorrow 🎇"
+    ],
+    "easter_monday": [
+      "No, go and enjoy your easter egg hunt!",
+      "Aren't you supposed to be on holiday?",
+      "Enjoy your easter brunch with your family!"
+    ],
+    "all_saints_day": [
+      "Are you not supposed to be on holiday?",
+      "No, go and enjoy your day off!",
+      "How was your halloween party?",
+      "Are you not hungover ?!"
+    ],
+    "default": [
+      "It's a holiday, go and enjoy it!",
+      "No, go and enjoy your day off!",
+      "Aren't you supposed to be on holiday?",
+      "Are you not hungover ?!"
+    ]
+  },
+  "holiday_tomorrow": {
+    "all_saints_day": [
+      "No, go and enjoy your halloween party!",
+      "Aren't you supposed to be on holiday?",
+      "Enjoy your halloween night with your friends!",
+      "Don't forget to wear your costume! 🎃"
+    ],
+    "christmas_day": [
+      "Are you Santa 🧑‍🎄 or what?",
+      "🎶🎵 You better watch out 🎵🎶",
+      "🎄 Enjoy the holiday season! 🎄 ",
+      "Just take another glass of eggnog",
+      "Can't you just wait after present unwrapping?",
+      "Sure, deploy... \n your family will appreciate you fixing things on your phone during dinner"
+    ],
+    "new_years_day": [
+      "Happy New Year! \n deploy the 2nd of january",
+      "Aren't you hungover?",
+      "Take another glass of champagne 🥂",
+      "Celebrate today, deploy tomorrow 🎇"
+    ],
+    "default": [
+      "No, you need to prepare for your party tonight!",
+      "It's a holiday tomorrow, go and enjoy it!"
+    ]
+  }
+}
