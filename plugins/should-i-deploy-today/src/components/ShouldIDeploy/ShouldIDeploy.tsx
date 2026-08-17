@@ -40,7 +40,7 @@ export const ShouldIDeploy = (_: Props) => {
       <Text as="h3" variant="body-medium" weight="bold">
         {"Should I deploy today?".toLocaleUpperCase()}
       </Text>
-      <Text as="h1" variant="title-large" style={{ whiteSpace: 'pre-line' }}>
+      <Text as="h1" variant="title-medium" style={{ whiteSpace: 'pre-line' }}>
         {reason}
       </Text>
       <br />
