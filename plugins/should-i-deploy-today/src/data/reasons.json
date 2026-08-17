@@ -145,9 +145,6 @@
       "Take another glass of champagne 🥂",
       "Celebrate today, deploy tomorrow 🎇"
     ],
-    "default": [
-      "No, you need to prepare for your party tonight!",
-      "It's a holiday tomorrow, go and enjoy it!"
-    ]
+    "default": ["No, you need to prepare for your party tonight!", "It's a holiday tomorrow, go and enjoy it!"]
   }
 }

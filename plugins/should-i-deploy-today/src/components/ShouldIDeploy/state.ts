@@ -3,7 +3,16 @@ import Hollidays, { HolidaysTypes } from 'date-holidays';
 import reasons from '../../data/reasons.json';
 
 export type ShouldIDeployStateStatus = 'OK' | 'WARNING' | 'KO';
-export type ShouldIDeployStateRule = 'friday_the_13th' | 'weekend' | 'holiday' | 'holiday_eve' | 'friday' | 'evening_or_night' | 'thursday_afternoon' | 'afternoon' | 'none';
+export type ShouldIDeployStateRule =
+  | 'friday_the_13th'
+  | 'weekend'
+  | 'holiday'
+  | 'holiday_eve'
+  | 'friday'
+  | 'evening_or_night'
+  | 'thursday_afternoon'
+  | 'afternoon'
+  | 'none';
 
 export interface ShouldIDeployState {
   message: string;
@@ -16,7 +25,10 @@ function choice<T>(arr: T[]): T {
 }
 
 function holidayReasons(holiday: HolidaysTypes.Holiday[], isTomorrow: boolean): string[] {
-  const holidayName = holiday[0].name.toLowerCase().replace(/\s/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  const holidayName = holiday[0].name
+    .toLowerCase()
+    .replace(/\s/g, '_')
+    .replace(/[^a-zA-Z0-9_]/g, '');
   const mapping = isTomorrow ? reasons.holiday_tomorrow : reasons.holiday;
   if (Object.keys(mapping).includes(holidayName)) {
     return mapping[holidayName as keyof typeof mapping];

@@ -15,6 +15,7 @@ repository except the shared packages a plugin pair uses between its own halves.
 | [Tech Insights: Jira](plugins/tech-insights-jira.md)          | tech-insights module   | Per-component Jira health facts: bugs, blockers, tech debt, cycle time                  |
 | [Tech Insights: stack](plugins/tech-insights-stack.md)        | tech-insights module   | Detects build tool, language version, framework and metrics library from GitHub         |
 | [Go template playground](plugins/gotemplate-playground.md)    | toolbox module         | Renders Go templates against the sprig, sprout, helm and external-secrets function sets |
+| [Should I deploy today?](plugins/should-i-deploy-today.md)    | frontend               | Home page widget answering the question from the weekday, the hour and public holidays  |
 
 Two cross-cutting guides cover the setup that is shared between them:
 

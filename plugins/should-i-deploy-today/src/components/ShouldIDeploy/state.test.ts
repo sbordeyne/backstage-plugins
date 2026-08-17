@@ -1,14 +1,13 @@
-import { getShouldIDeployStateFromDate } from "./state";
+import { getShouldIDeployStateFromDate } from './state';
 import reasons from '../../data/reasons.json';
 
 describe('ShouldIDeployState', () => {
   const timezone = 'Etc/UTC';
-  const country = 'FR'
+  const country = 'FR';
 
   // Dates are built from local components so that the weekday and hour checks
   // are independent of the machine timezone jest runs in.
-  const at = (year: number, month: number, day: number, hours = 12) =>
-    new Date(year, month - 1, day, hours, 0, 0);
+  const at = (year: number, month: number, day: number, hours = 12) => new Date(year, month - 1, day, hours, 0, 0);
 
   const stateAt = (date: Date) => getShouldIDeployStateFromDate(date, timezone, country);
 

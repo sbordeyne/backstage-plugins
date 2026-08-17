@@ -38,7 +38,7 @@ export const ShouldIDeploy = (_: Props) => {
       style={{ height: '100%', width: '100%', textAlign: 'center' }}
     >
       <Text as="h3" variant="body-medium" weight="bold">
-        {"Should I deploy today?".toLocaleUpperCase()}
+        {'Should I deploy today?'.toLocaleUpperCase()}
       </Text>
       <Text as="h1" variant="title-medium" style={{ whiteSpace: 'pre-line' }}>
         {reason}

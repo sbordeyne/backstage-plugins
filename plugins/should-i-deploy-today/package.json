@@ -1,7 +1,22 @@
 {
   "name": "@sbordeyne/backstage-plugin-should-i-deploy-today",
   "version": "0.1.0",
+  "description": "Backstage home page widget answering whether today is a good day to deploy, from the weekday, the time of day and the public holidays of your locale.",
   "license": "Apache-2.0",
+  "homepage": "https://sbordeyne.github.io/backstage-plugins/dev/plugins/should-i-deploy-today/",
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "plugins/should-i-deploy-today"
+  },
+  "bugs": "https://github.com/sbordeyne/backstage-plugins/issues",
+  "keywords": [
+    "backstage",
+    "backstage-plugin",
+    "home",
+    "homepage",
+    "deployment",
+    "frontend-plugin"
+  ],
   "main": "src/index.ts",
   "types": "src/index.ts",
   "publishConfig": {
@@ -9,13 +24,12 @@
     "main": "dist/index.esm.js",
     "types": "dist/index.d.ts"
   },
-  "repository": {
-    "url": "https://github.com/sbordeyne/backstage-plugins",
-    "directory": "plugins/should-i-deploy-today"
-  },
   "backstage": {
     "role": "frontend-plugin",
-    "pluginId": "should-i-deploy-today"
+    "pluginId": "should-i-deploy-today",
+    "pluginPackages": [
+      "@sbordeyne/backstage-plugin-should-i-deploy-today"
+    ]
   },
   "sideEffects": false,
   "scripts": {
@@ -28,29 +42,35 @@
     "postpack": "backstage-cli package postpack"
   },
   "dependencies": {
-    "@backstage/core-components": "backstage:^",
     "@backstage/frontend-plugin-api": "backstage:^",
     "@backstage/plugin-home-react": "backstage:^",
-    "@backstage/theme": "backstage:^",
     "@backstage/ui": "backstage:^",
-    "date-holidays": "^3.35.0",
-    "react-use": "^17.2.4"
+    "date-holidays": "^3.35.0"
   },
   "peerDependencies": {
     "react": "^16.13.1 || ^17.0.0 || ^18.0.0"
   },
   "devDependencies": {
     "@backstage/cli": "backstage:^",
-    "@backstage/frontend-defaults": "backstage:^",
     "@backstage/frontend-dev-utils": "backstage:^",
     "@backstage/frontend-test-utils": "backstage:^",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
-    "@testing-library/user-event": "^14.0.0",
-    "msw": "^1.0.0",
+    "@types/react": "^18",
     "react": "^16.13.1 || ^17.0.0 || ^18.0.0"
   },
   "files": [
     "dist"
-  ]
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "package.json": [
+        "package.json"
+      ]
+    }
+  }
 }
