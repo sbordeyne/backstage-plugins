@@ -40,3 +40,17 @@ run = "properdocs build --strict"
 # gh-pages site locally for previewing the version selector.
 [tasks."docs:versions"]
 run = "mike serve"
+
+[tasks."npm:publish"]
+usage = '''
+arg "<path>" help="path to the package to publish"
+'''
+run = """
+  if [ -z "${usage_path}" ]; then
+    echo "Error: <path> argument is required"
+    exit 1
+  fi
+  yarn npm login --publish --scope sbordeyne
+  yarn --cwd ${usage_path} npm publish
+  (cd ${usage_path} && npm trust github --allow-publish --file relase.yaml --repo sbordeyne/backstage-plugins $(jq -r '.name' package.json))
+"""
