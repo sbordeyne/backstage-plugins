@@ -9,6 +9,10 @@
     "main": "dist/index.esm.js",
     "types": "dist/index.d.ts"
   },
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "plugins/should-i-deploy-today"
+  },
   "backstage": {
     "role": "frontend-plugin",
     "pluginId": "should-i-deploy-today"
