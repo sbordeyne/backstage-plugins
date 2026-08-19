@@ -1,6 +1,6 @@
 {
   "name": "@sbordeyne/backstage-plugin-secure-share",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Backstage frontend plugin for short-lived, end-to-end encrypted sharing of credentials, text and files between users and groups.",
   "license": "Apache-2.0",
   "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/secure-share/",
@@ -47,6 +47,7 @@
     "@backstage/core-components": "backstage:^",
     "@backstage/core-plugin-api": "backstage:^",
     "@backstage/errors": "backstage:^",
+    "@backstage/frontend-plugin-api": "backstage:^",
     "@backstage/plugin-catalog-react": "backstage:^",
     "@backstage/plugin-home-react": "backstage:^",
     "@material-ui/core": "^4.9.13",
@@ -62,7 +63,8 @@
   },
   "devDependencies": {
     "@backstage/cli": "backstage:^",
-    "@backstage/dev-utils": "backstage:^",
+    "@backstage/frontend-defaults": "backstage:^",
+    "@backstage/frontend-test-utils": "backstage:^",
     "@backstage/test-utils": "backstage:^",
     "@testing-library/dom": "^9.0.0",
     "@testing-library/jest-dom": "^6.0.0",
@@ -77,5 +79,20 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./alpha": "./src/alpha.tsx",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "alpha": [
+        "src/alpha.tsx"
+      ],
+      "package.json": [
+        "package.json"
+      ]
+    }
+  }
 }

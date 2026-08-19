@@ -55,31 +55,37 @@ callers, which is what makes secret links work — see [Secret links](#secret-li
 
 ### Frontend
 
+The frontend requires the [new frontend system](https://backstage.io/docs/frontend-system/); it
+exposes no legacy `createPlugin` extensions.
+
 ```bash
 yarn --cwd packages/app add @sbordeyne/backstage-plugin-secure-share
 ```
 
 ```tsx
 // packages/app/src/App.tsx
-import { SecureSharePage } from '@sbordeyne/backstage-plugin-secure-share';
+import secureSharePlugin from '@sbordeyne/backstage-plugin-secure-share/alpha';
 
-<Route path="/secure-share" element={<SecureSharePage />} />;
+const app = createApp({
+  features: [secureSharePlugin],
+});
 ```
 
-```tsx
-// packages/app/src/components/Root/Root.tsx
-<SidebarItem icon={LockIcon} to="secure-share" text="Secure Share" />
+The page brings its own title and icon, which is what puts `Secure Share` in the sidebar — no
+`SidebarItem` to add. Both are overridable, along with the path, from `app-config.yaml`:
+
+```yaml
+app:
+  extensions:
+    - page:secure-share:
+        config:
+          path: /secrets
+          title: Secrets
 ```
 
-Optionally, a home page card listing what was recently shared with the signed-in user. It
-honours `secureShare.card.limit`, or takes an explicit `limit`:
-
-```tsx
-// packages/app/src/components/home/HomePage.tsx
-import { SecureShareSharedWithMeCard } from '@sbordeyne/backstage-plugin-secure-share';
-
-<SecureShareSharedWithMeCard limit={3} />;
-```
+The plugin also ships a home page widget listing what was recently shared with the signed-in
+user. Like every home page widget it is added from the home page's own customization, and it
+honours `secureShare.card.limit` unless the viewer overrides the count in the widget settings.
 
 Routes inside the plugin:
 

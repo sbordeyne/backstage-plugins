@@ -21,20 +21,16 @@ import shouldIDeployTodayPlugin from '@sbordeyne/backstage-plugin-should-i-deplo
 import toolboxPlugin from '@drodil/backstage-plugin-toolbox';
 import gotemplateModule from '@sbordeyne/backstage-plugin-toolbox-module-gotemplate';
 
-// The three plugins below still use the legacy frontend system, so each one is
+import secureSharePlugin from '@sbordeyne/backstage-plugin-secure-share/alpha';
+
+// The two plugins below still use the legacy frontend system, so each one is
 // converted before it can be handed to createApp.
-import {
-  secureSharePlugin,
-  SecureSharePage,
-  rootRouteRef as secureShareRouteRef,
-} from '@sbordeyne/backstage-plugin-secure-share';
 import {
   integratedRepositoriesPlugin,
   IntegratedRepositoriesPage,
 } from '@sbordeyne/backstage-plugin-integrated-repositories';
 import { brunoPlugin, EntityBrunoContent } from '@sbordeyne/backstage-plugin-bruno';
 
-import ShareIcon from '@material-ui/icons/Share';
 import StorageIcon from '@material-ui/icons/Storage';
 
 /*
@@ -44,21 +40,6 @@ import StorageIcon from '@material-ui/icons/Storage';
  * inside `compatWrapper` — keeps the plugin's APIs registered *and* gets each
  * page into the nav.
  */
-const convertedSecureShare = convertLegacyPlugin(secureSharePlugin, {
-  extensions: [
-    PageBlueprint.make({
-      name: 'root',
-      params: {
-        path: '/secure-share',
-        title: 'Secure Share',
-        icon: <ShareIcon />,
-        routeRef: convertLegacyRouteRef(secureShareRouteRef),
-        loader: async () => compatWrapper(<SecureSharePage />),
-      },
-    }),
-  ],
-});
-
 const convertedIntegratedRepositories = convertLegacyPlugin(integratedRepositoriesPlugin, {
   extensions: [
     PageBlueprint.make({
@@ -99,7 +80,7 @@ const app = createApp({
     toolboxPlugin,
     gotemplateModule,
 
-    convertedSecureShare,
+    secureSharePlugin,
     convertedIntegratedRepositories,
     convertedBruno,
   ],

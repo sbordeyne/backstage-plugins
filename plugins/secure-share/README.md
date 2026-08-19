@@ -38,18 +38,22 @@ same reader so the limits the form enforces match the ones the backend enforces.
 
 ## Installation
 
-Wire the plugin into your Backstage app:
+This is a [new frontend system](https://backstage.io/docs/frontend-system/) plugin: it exposes
+no legacy `createPlugin` extensions, and is installed as a feature.
 
 ```tsx
-// packages/app/src/routes.tsx
-<Route path="/secure-share" element={<SecureSharePage />} />
+// packages/app/src/App.tsx
+import secureSharePlugin from '@sbordeyne/backstage-plugin-secure-share/alpha';
 
-// packages/app/src/components/home/HomePage.tsx
-<SecureShareSharedWithMeCard />        // honours secureShare.card.limit, or pass limit={3}
-
-// packages/app/src/components/Root/Root.tsx
-<SidebarItem icon={LockIcon} to="secure-share" text="Secure Share" />
+const app = createApp({
+  features: [secureSharePlugin],
+});
 ```
+
+The page carries its own title and icon, which is what the app builds the sidebar entry from, so
+there is no `SidebarItem` to add. The `Shared with me` home page widget comes with the plugin and
+is added from the home page's own customization; it honours `secureShare.card.limit` unless the
+viewer overrides the count in the widget settings.
 
 Routes inside the plugin:
 
