@@ -152,8 +152,8 @@ export const GoTemplatePlayground = () => {
           {loadError.message}
           <br />
           <br />
-          It was fetched from <code className={styles.code}>{wasmUrl}</code>. If your Backstage deployment blocks public
-          CDNs, host <code className={styles.code}>gotemplate.wasm</code> yourself and set{' '}
+          It was fetched from <code className={styles.code}>{wasmUrl}</code>. If your Backstage deployment cannot reach
+          GitHub, host <code className={styles.code}>gotemplate.wasm</code> yourself and set{' '}
           <code className={styles.code}>gotemplate.wasmUrl</code> in your app-config.
         </p>
       </div>

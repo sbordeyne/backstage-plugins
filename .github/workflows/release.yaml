@@ -152,6 +152,18 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      # Packages with a `build:wasm` script compile a Go module tree far larger than the
+      # package itself. Without a cache that is minutes of module downloads on every run.
+      - name: Cache the Go build
+        if: hashFiles(format('{0}/wasm/go.sum', matrix.package.dir)) != ''
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-wasm-${{ runner.os }}-${{ hashFiles(format('{0}/wasm/go.sum', matrix.package.dir)) }}
+          restore-keys: go-wasm-${{ runner.os }}-
+
       - name: Publish to npm
         env:
           PACKAGE: ${{ matrix.package.name }}
@@ -238,3 +250,44 @@ jobs:
           else
             gh release create "${TAG}" --title "${PACKAGE} v${VERSION}" --notes-file "${RUNNER_TEMP}/notes.md"
           fi
+
+      # A package can ship a WebAssembly module too large to be worth pulling through npm on
+      # every install (the Go template engine is ~83MB), so the release carries it instead
+      # and the plugin fetches it from here at runtime. Only packages that declare a
+      # `build:wasm` script have one, so this is a no-op for everything else.
+      - name: Attach the WebAssembly build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ matrix.package.tag }}
+          PACKAGE: ${{ matrix.package.name }}
+          DIR: ${{ matrix.package.dir }}
+        run: |
+          set -euo pipefail
+
+          if ! jq -e '.scripts["build:wasm"] // empty' "${DIR}/package.json" > /dev/null; then
+            echo "${PACKAGE} declares no build:wasm script, nothing to attach"
+            exit 0
+          fi
+
+          # The npm tarball does not carry the module, so this is the only build of it in the
+          # release: nothing earlier in the job has produced one to reuse.
+          yarn workspace "${PACKAGE}" build:wasm
+
+          shopt -s nullglob
+          modules=("${DIR}"/static/*.wasm)
+          if [ "${#modules[@]}" -eq 0 ]; then
+            echo "::error::build:wasm produced no .wasm under ${DIR}/static"
+            exit 1
+          fi
+
+          # --clobber so a re-run replaces the asset rather than failing on the name; the
+          # asset name is the bare filename, which is what the default fetch URL points at.
+          gh release upload "${TAG}" "${modules[@]}" --clobber
+
+          {
+            echo "### WebAssembly assets"
+            echo
+            for module in "${modules[@]}"; do
+              echo "- \`$(basename "${module}")\` ($(du -h "${module}" | cut -f1)) on \`${TAG}\`"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

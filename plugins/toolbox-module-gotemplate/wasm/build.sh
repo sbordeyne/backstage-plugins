@@ -2,8 +2,9 @@
 # Builds the Go template engine to WebAssembly and vendors the Go runtime shim
 # that loads it.
 #
-# The output is intentionally not committed: it is ~83MB uncompressed. Run this
-# before packing/publishing (the prepack script does) or before `yarn start`.
+# The output is neither committed nor published: it is ~83MB uncompressed, and
+# releases carry it as a GitHub release asset instead. CI runs this when it cuts
+# a release; run it by hand to serve the module locally.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

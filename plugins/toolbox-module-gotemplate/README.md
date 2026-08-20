@@ -66,15 +66,16 @@ is the price of running the genuine helm and external-secrets code paths, which
 pull in `client-go` and `apimachinery`. It is fetched lazily — only when someone
 opens the tool — and then cached by the browser.
 
-By default it is fetched from jsDelivr:
+By default it is fetched from the GitHub release matching the installed
+package version, where CI attaches it as a release asset:
 
 ```
-https://cdn.jsdelivr.net/npm/@sbordeyne/backstage-plugin-toolbox-module-gotemplate@<version>/static/gotemplate.wasm
+https://github.com/sbordeyne/backstage-plugins/releases/download/backstage-plugin-toolbox-module-gotemplate-<version>/gotemplate.wasm
 ```
 
-**Many Backstage deployments block public CDNs.** To self-host, copy
-`static/gotemplate.wasm` out of the package into something you serve, and point
-the tool at it:
+**Some Backstage deployments cannot reach GitHub from the browser.** To
+self-host, download `gotemplate.wasm` from that release into something you
+serve, and point the tool at it:
 
 ```yaml
 # app-config.yaml
@@ -96,9 +97,10 @@ toolchain (Go 1.26.5+, matching `wasm/go.mod`):
 yarn build:wasm
 ```
 
-This writes `static/gotemplate.wasm` and refreshes the vendored
-`src/engine/wasm_exec.js` loader shim so it always matches the compiler that
-produced the module. `yarn prepack` runs it automatically before publishing.
+This writes `static/gotemplate.wasm` — which is neither committed nor part of
+the npm package — and refreshes the vendored `src/engine/wasm_exec.js` loader
+shim so it always matches the compiler that produced the module. The release
+workflow runs it for you and uploads the result to the release.
 
 The Go code is split so the rendering logic is testable on the host platform:
 

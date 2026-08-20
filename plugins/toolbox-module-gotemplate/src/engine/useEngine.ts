@@ -3,19 +3,25 @@ import { configApiRef, useApi } from '@backstage/core-plugin-api';
 import { loadEngine } from './loadEngine';
 import type { GoTemplateEngine } from './types';
 
+// Read from the manifest rather than restated here, so a version bump cannot leave the
+// default URL pointing at a release that holds a different build of the engine. The values
+// are inlined at build time; nothing reads package.json at runtime.
+import { name, repository, version } from '../../package.json';
+
 /**
- * Bumped in lockstep with the package version so the default CDN URL always
- * points at the engine that was built from this source.
+ * The release the engine is attached to. Tags in this monorepo are the package name without
+ * its scope, plus the version — the same shape the release workflow computes when it uploads
+ * `gotemplate.wasm` as a release asset.
  */
-const PACKAGE_VERSION = '0.1.0';
-const PACKAGE_NAME = '@sbordeyne/backstage-plugin-toolbox-module-gotemplate';
+const RELEASE_TAG = `${name.replace(/^@[^/]+\//, '')}-${version}`;
 
-const DEFAULT_WASM_URL = `https://cdn.jsdelivr.net/npm/${PACKAGE_NAME}@${PACKAGE_VERSION}/static/gotemplate.wasm`;
+const DEFAULT_WASM_URL = `${repository.url}/releases/download/${RELEASE_TAG}/gotemplate.wasm`;
 
 /**
- * Resolves where to fetch the engine from. The default is a public CDN, which
- * many Backstage deployments block; `gotemplate.wasmUrl` in app-config points
- * the tool at a self-hosted copy instead.
+ * Resolves where to fetch the engine from. The default is the GitHub release
+ * matching this package's version, which some deployments cannot reach;
+ * `gotemplate.wasmUrl` in app-config points the tool at a self-hosted copy
+ * instead.
  */
 export function useWasmUrl(): string {
   const config = useApi(configApiRef);
