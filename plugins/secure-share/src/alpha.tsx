@@ -60,6 +60,7 @@ export default createFrontendPlugin({
     HomePageWidgetBlueprint.make({
       name: 'shared-with-me',
       params: {
+        name: 'HomePageSharedWithMe',
         title: 'Shared with me',
         description: 'Secrets recently shared with you, decrypted in your browser',
         components: () => import('./components/SharedWithMeCard').then(m => ({ Content: m.SharedWithMeCard })),

@@ -1,6 +1,6 @@
 {
   "name": "@sbordeyne/backstage-plugin-secure-share",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Backstage frontend plugin for short-lived, end-to-end encrypted sharing of credentials, text and files between users and groups.",
   "license": "Apache-2.0",
   "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/secure-share/",
