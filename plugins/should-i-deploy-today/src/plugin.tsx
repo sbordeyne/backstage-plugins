@@ -6,7 +6,7 @@ import { rootRouteRef } from './routes';
 const widget = HomePageWidgetBlueprint.make({
   name: 'should-i-deploy-today',
   params: {
-    name: 'Should I deploy today?',
+    name: 'HomePageShouldIDeployToday',
     description: 'A simple widget to check if you should deploy today.',
     layout: {
       height: {

@@ -1,6 +1,6 @@
 {
   "name": "@sbordeyne/backstage-plugin-should-i-deploy-today",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Backstage home page widget answering whether today is a good day to deploy, from the weekday, the time of day and the public holidays of your locale.",
   "license": "Apache-2.0",
   "homepage": "https://sbordeyne.github.io/backstage-plugins/dev/plugins/should-i-deploy-today/",
