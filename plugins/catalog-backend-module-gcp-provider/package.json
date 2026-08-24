@@ -1,11 +1,12 @@
 {
   "name": "@sbordeyne/plugin-catalog-backend-module-gcp-provider",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "Apache-2.0",
   "description": "The gcp-provider backend module for the catalog plugin.",
-  "homepage": "https://sbordeyne.github.io/backstage-plugins/plugins/gcp-catalog-provider/",
+  "homepage": "https://sbordeyne.github.io/backstage-plugins/dev/plugins/gcp-catalog-provider/",
   "repository": {
-    "url": "https://github.com/sbordeyne/backstage-plugins/tree/master/plugins/catalog-backend-module-gcp-provider",
+    "type": "git",
+    "url": "git+https://github.com/sbordeyne/backstage-plugins.git",
     "directory": "plugins/catalog-backend-module-gcp-provider"
   },
   "bugs": "https://github.com/sbordeyne/backstage-plugins/issues",
