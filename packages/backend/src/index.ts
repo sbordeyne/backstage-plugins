@@ -29,10 +29,21 @@ backend.add(import('@backstage/plugin-search-backend-module-techdocs'));
 // Runs on the SQLite database above, so it needs no extra configuration.
 backend.add(import('@sbordeyne/backstage-plugin-secure-share-backend'));
 
+// Serves whatever has been ingested. `kubespec.sync.enabled` is false in
+// app-config.yaml, so this starts without GitHub credentials and the page
+// explains that nothing has been ingested yet; see below to turn the sync on.
+backend.add(import('@sbordeyne/backstage-plugin-kubespec-backend'));
+// Indexes the ingested kinds into search. Harmless while the database is empty.
+backend.add(import('@sbordeyne/backstage-plugin-kubespec-backend/alpha'));
+
 /*
  * The plugins below reach out to third-party systems and abort startup when
  * their configuration is missing. Add the matching credentials to
  * app-config.local.yaml, then uncomment the one you want to exercise.
+ *
+ * Kubespec is registered above with its sync switched off. To fetch specs, put a
+ * GitHub token in `integrations.github` and set `kubespec.sync.enabled: true`,
+ * then press the sync button on the page.
  *
  * Needs `bruno.source` plus GCS/S3/GitHub credentials:
  *   backend.add(import('@sbordeyne/backstage-plugin-bruno-backend'));

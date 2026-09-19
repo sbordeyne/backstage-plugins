@@ -50,6 +50,7 @@
     "@material-ui/icons": "^4.9.1",
     "@sbordeyne/backstage-plugin-bruno": "workspace:^",
     "@sbordeyne/backstage-plugin-integrated-repositories": "workspace:^",
+    "@sbordeyne/backstage-plugin-kubespec": "workspace:^",
     "@sbordeyne/backstage-plugin-secure-share": "workspace:^",
     "@sbordeyne/backstage-plugin-should-i-deploy-today": "workspace:^",
     "@sbordeyne/backstage-plugin-toolbox-module-gotemplate": "workspace:^",

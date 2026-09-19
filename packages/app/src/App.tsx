@@ -15,6 +15,7 @@ import homePlugin from '@backstage/plugin-home/alpha';
 import userSettingsPlugin from '@backstage/plugin-user-settings/alpha';
 import appVisualizerPlugin from '@backstage/plugin-app-visualizer';
 import shouldIDeployTodayPlugin from '@sbordeyne/backstage-plugin-should-i-deploy-today';
+import kubespecPlugin from '@sbordeyne/backstage-plugin-kubespec/alpha';
 
 // The toolbox exposes its frontend plugin from the package root rather than an
 // /alpha subpath, because v2 is new-frontend-system only.
@@ -81,6 +82,7 @@ const app = createApp({
     gotemplateModule,
 
     secureSharePlugin,
+    kubespecPlugin,
     convertedIntegratedRepositories,
     convertedBruno,
   ],

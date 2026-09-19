@@ -1,0 +1,81 @@
+{
+  "name": "@sbordeyne/backstage-plugin-kubespec-backend",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "backstage": {
+    "role": "backend-plugin",
+    "pluginId": "kubespec",
+    "pluginPackages": [
+      "@sbordeyne/backstage-plugin-kubespec",
+      "@sbordeyne/backstage-plugin-kubespec-backend"
+    ]
+  },
+  "configSchema": "config.d.ts",
+  "scripts": {
+    "start": "backstage-cli package start",
+    "build": "backstage-cli package build",
+    "lint": "backstage-cli package lint",
+    "test": "backstage-cli package test",
+    "clean": "backstage-cli package clean",
+    "prepack": "backstage-cli package prepack",
+    "postpack": "backstage-cli package postpack"
+  },
+  "dependencies": {
+    "@backstage/backend-defaults": "backstage:^",
+    "@backstage/backend-plugin-api": "backstage:^",
+    "@backstage/config": "backstage:^",
+    "@backstage/errors": "backstage:^",
+    "@backstage/integration": "backstage:^",
+    "@backstage/plugin-search-backend-node": "backstage:^",
+    "@backstage/plugin-search-common": "backstage:^",
+    "@backstage/types": "backstage:^",
+    "@octokit/plugin-retry": "^4.1.6",
+    "@octokit/plugin-throttling": "^6.1.0",
+    "@octokit/rest": "^19.0.13",
+    "@sbordeyne/kubespec-common": "workspace:^",
+    "diff": "^5.2.0",
+    "express": "^4.17.1",
+    "express-promise-router": "^4.1.0",
+    "knex": "^3.0.0",
+    "yaml": "^2.4.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@backstage/backend-test-utils": "backstage:^",
+    "@backstage/cli": "backstage:^",
+    "@types/diff": "^5.2.0",
+    "@types/express": "^4.17.6",
+    "@types/supertest": "^2.0.12",
+    "supertest": "^6.2.4"
+  },
+  "files": [
+    "dist",
+    "migrations",
+    "metadata",
+    "config.d.ts"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./alpha": "./src/alpha.ts",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "alpha": [
+        "src/alpha.ts"
+      ],
+      "package.json": [
+        "package.json"
+      ]
+    }
+  },
+  "repository": {
+    "url": "https://github.com/sbordeyne/backstage-plugins",
+    "directory": "plugins/kubespec-backend"
+  }
+}

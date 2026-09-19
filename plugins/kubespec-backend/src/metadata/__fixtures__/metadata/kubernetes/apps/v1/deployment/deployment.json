@@ -1,0 +1,9 @@
+{
+  "links": [
+    {
+      "name": "Kubernetes docs: Deployments",
+      "href": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    },
+    { "name": "kubectl reference", "href": "https://kubernetes.io/docs/reference/kubectl/" }
+  ]
+}

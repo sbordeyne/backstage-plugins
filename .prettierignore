@@ -11,3 +11,7 @@ site
 # reparents the comments that follow them and still reports the result as
 # unformatted.
 properdocs.yml
+
+# Hand-authored example manifests, imported as a corpus. Formatting them would
+# rewrite the YAML inside the fences, which is the content itself.
+plugins/kubespec-backend/metadata

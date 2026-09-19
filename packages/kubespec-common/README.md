@@ -1,0 +1,7 @@
+# @sbordeyne/kubespec-common
+
+Wire types shared by `@sbordeyne/backstage-plugin-kubespec-backend` (which produces them)
+and `@sbordeyne/backstage-plugin-kubespec` (which renders them).
+
+Nothing here depends on Backstage, knex or React — it is types only, so a change
+to the contract breaks both halves at compile time rather than at runtime.

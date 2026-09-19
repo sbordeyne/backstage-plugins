@@ -50,3 +50,44 @@ techdocs:
 # straight out of packages/app/public, so the app works with no network access.
 gotemplate:
   wasmUrl: /gotemplate.wasm
+
+# Kubernetes and CRD schema reference. The sync is off so the backend starts with
+# no credentials; the page then says nothing has been ingested yet. To fill it,
+# add a GitHub token under `integrations.github`, set `sync.enabled: true` and
+# press the sync button.
+#
+# Sources are yours to choose. A few are listed here to show the shapes the tag
+# rules cover: pinned minors for the core API, a release asset, a plain directory
+# and a prefixed tag series.
+kubespec:
+  sync:
+    enabled: false
+  kubernetes:
+    minors: ['v1.36', 'v1.37']
+  projects:
+    - slug: cert-manager
+      name: cert-manager
+      repo: cert-manager/cert-manager
+      logoUrl: https://avatars.githubusercontent.com/u/39950598?s=48&v=4
+      # One asset per release rather than a directory walk.
+      releaseAsset: cert-manager.yaml
+      tags: { regex: '^v\d+\.\d+\.\d+$', max: 3 }
+
+    - slug: gateway-api
+      name: Gateway API
+      repo: kubernetes-sigs/gateway-api
+      logoUrl: https://avatars.githubusercontent.com/u/36015203?s=48&v=4
+      paths: ['config/crd/standard']
+      tags: { minVersion: 'v1.6.1', max: 3 }
+
+    - slug: actions-runner-controller
+      name: GitHub Actions Runner Controller
+      repo: actions/actions-runner-controller
+      logoUrl: https://avatars.githubusercontent.com/u/44036562?s=48&v=4
+      paths: ['charts/gha-runner-scale-set-controller/crds']
+      # The prefix is stripped before every other rule, and what remains is both
+      # the version that is parsed and the one displayed.
+      tags:
+        prefix: 'gha-runner-scale-set-'
+        regex: '^\d+\.\d+\.\d+$'
+        max: 3
