@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.7">
     
     
       
@@ -33,7 +33,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -458,6 +458,34 @@
     
   
     Bruno
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubespec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubespec
   
 
     
@@ -1045,8 +1073,8 @@ debt, and average cycle time.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>yarn<span class="w"> </span>--cwd<span class="w"> </span>packages/backend<span class="w"> </span>add<span class="w"> </span>@sbordeyne/plugin-tech-insights-backend-module-jira
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// packages/backend/src/index.ts</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;@backstage-community/plugin-tech-insights-backend&#39;</span><span class="p">));</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;@sbordeyne/plugin-tech-insights-backend-module-jira&#39;</span><span class="p">));</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">'@backstage-community/plugin-tech-insights-backend'</span><span class="p">));</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nx">backend</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="k">import</span><span class="p">(</span><span class="s1">'@sbordeyne/plugin-tech-insights-backend-module-jira'</span><span class="p">));</span>
 </code></pre></div>
 <p>The module checks for <code>techInsights.jira</code> at startup. When it is missing it logs a warning and
 registers nothing, rather than registering a retriever that would fail on every run.</p>
@@ -1083,7 +1111,7 @@ registers nothing, rather than registering a retriever that would fail on every 
 <p><code>token</code> is <strong>not</strong> the raw API token. It is the base64 of <code>email:api-token</code>, which is what
 <code>Authorization: Basic</code> expects:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;%s&#39;</span><span class="w"> </span><span class="s1">&#39;me@example.com:ATATT3xFfGF0...&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'%s'</span><span class="w"> </span><span class="s1">'me@example.com:ATATT3xFfGF0...'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64
 </code></pre></div>
 <p>Put the result in an environment variable and reference it from config; never commit it.</p>
 <div class="admonition note">
@@ -1154,17 +1182,17 @@ unlinked component from a healthy one instead of treating both as fine.</p>
 </table>
 <p>The JQL behind each fact, for when a number does not look right:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">-- openBugCount</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">&quot;KEY&quot;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">issuetype</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Bug</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">resolution</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Unresolved</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">"KEY"</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">issuetype</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Bug</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">resolution</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Unresolved</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1">-- openBlockerBugCount</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">&quot;KEY&quot;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">issuetype</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Bug</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">"KEY"</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">issuetype</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Bug</span>
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">priority</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="p">(</span><span class="n">Blocker</span><span class="p">,</span><span class="w"> </span><span class="n">Critical</span><span class="p">)</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">resolution</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Unresolved</span>
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1">-- openTechDebtCount</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">&quot;KEY&quot;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">issuetype</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="p">(</span><span class="ss">&quot;Tech Debt&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">Improvement</span><span class="p">)</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">resolution</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Unresolved</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">"KEY"</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">issuetype</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="p">(</span><span class="ss">"Tech Debt"</span><span class="p">,</span><span class="w"> </span><span class="n">Improvement</span><span class="p">)</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">resolution</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Unresolved</span>
 <a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
 <a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="c1">-- avgCycleTimeDays, over at most 100 issues</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">&quot;KEY&quot;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">resolution</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Done</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">resolutiondate</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">-</span><span class="mi">90</span><span class="n">d</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="n">project</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">"KEY"</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">resolution</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Done</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">resolutiondate</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">-</span><span class="mi">90</span><span class="n">d</span>
 </code></pre></div>
 <p>Those issue type and priority names are Jira defaults. An instance that renamed <code>Tech Debt</code>,
 dropped the <code>Critical</code> priority or uses a different <code>Done</code> resolution will report zeroes for the
@@ -1286,7 +1314,7 @@ instance against the JQL above.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.tabs", "navigation.instant", "navigation.tracking", "toc.follow", "content.code.copy", "content.tabs.link", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
