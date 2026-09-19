@@ -37,7 +37,10 @@ export class GcpClustersEntityProvider extends GcpRestEntityProvider<container_v
       return undefined;
     }
     const location = `${this.getProviderName()}:${cluster.location}`;
-
+    let clusterCA = cluster.masterAuth?.clusterCaCertificate;
+    if (cluster?.controlPlaneEndpointsConfig?.dnsEndpointConfig?.endpoint) {
+      clusterCA = '';
+    }
     const entity = this.toEntity(
       {
         name: cluster.name,
@@ -62,7 +65,7 @@ export class GcpClustersEntityProvider extends GcpRestEntityProvider<container_v
           [ANNOTATION_KUBERNETES_API_SERVER]: `https://${
             cluster.controlPlaneEndpointsConfig?.dnsEndpointConfig?.endpoint || cluster.endpoint
           }`,
-          [ANNOTATION_KUBERNETES_API_SERVER_CA]: cluster.masterAuth?.clusterCaCertificate || '',
+          [ANNOTATION_KUBERNETES_API_SERVER_CA]: clusterCA || '',
           [ANNOTATION_KUBERNETES_AUTH_PROVIDER]: 'googleServiceAccount',
           [ANNOTATION_KUBERNETES_DASHBOARD_APP]: 'gke',
           // The cluster is keyed by location rather than by its own URL, so both halves of the
