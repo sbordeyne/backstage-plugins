@@ -1,8 +1,52 @@
 # @sbordeyne/backstage-plugin-kubespec
 
 The `/kubespec` page: a reference for the Kubernetes API and for the CRDs of the
-operators happn runs, served by
+operators you run, served by
 [`kubespec-backend`](../kubespec-backend/README.md).
+
+Full documentation — configuration, CRD sources, ingest behaviour — lives at
+[sbordeyne.github.io/backstage-plugins/plugins/kubespec](https://sbordeyne.github.io/backstage-plugins/plugins/kubespec/).
+
+## Installation
+
+The page renders from the backend's database and has no other data source, so
+[`@sbordeyne/backstage-plugin-kubespec-backend`](../kubespec-backend/README.md) has
+to be installed first.
+
+```bash
+yarn --cwd packages/app add @sbordeyne/backstage-plugin-kubespec
+```
+
+On the [new frontend system](https://backstage.io/docs/frontend-system/), the
+plugin is installed as a feature:
+
+```tsx
+// packages/app/src/App.tsx
+import kubespecPlugin from '@sbordeyne/backstage-plugin-kubespec/alpha';
+
+const app = createApp({
+  features: [kubespecPlugin],
+});
+```
+
+The page carries its own title and icon, which is what puts `Kubespec` in the
+sidebar — there is no `SidebarItem` to add. Path, title and icon are overridable
+from `app.extensions`, and `kubespec.defaultSource` picks the source the page
+opens on; see the documentation site for both.
+
+On the legacy frontend system, the package root still exports a plugin and a
+routable extension:
+
+```tsx
+import { KubespecPageExtension, kubespecPlugin } from '@sbordeyne/backstage-plugin-kubespec';
+
+<FlatRoutes>
+  <Route path="/kubespec" element={<KubespecPageExtension />} />
+</FlatRoutes>;
+```
+
+`kubespecPlugin` registers the API client, so the plugin still has to be picked up
+by the app even when only the route is mounted.
 
 ## URLs
 
@@ -43,10 +87,11 @@ every expandable row also carries a chevron and a child count.
 
 ## Notes for the next person
 
-- The tree paints its own panel rather than using the theme surface. The happn
-  dark theme's `background.paper` is `#767470`, a mid grey nothing reaches 3:1
-  against; `src/lib/propertyTypePalette.ts` documents the measurement and carries
-  the validator invocation to re-run if either theme changes.
+- The tree paints its own panel rather than using the theme surface. The dark
+  theme this was built against has `background.paper` at `#767470`, a mid grey
+  nothing reaches 3:1 against; `src/lib/propertyTypePalette.ts` documents the
+  measurement and carries the validator invocation to re-run if either theme
+  changes.
 - Description diffs arrive precomputed from the backend. They are a constant of
   two stored strings, so they are produced once at ingest rather than once per
   reader — which also keeps a diffing library out of the app bundle.

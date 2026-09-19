@@ -4,8 +4,58 @@ Ingests Kubernetes API specs and CRD manifests from GitHub, expands them into
 browsable schemas and stores them, so the `/kubespec` page renders from the
 database rather than from upstream.
 
-Modelled on [kubespec.dev](https://kubespec.dev), scoped to the projects happn
-declares in `app-config.yaml`.
+Modelled on [kubespec.dev](https://kubespec.dev), scoped to the projects you
+declare in `app-config.yaml`.
+
+Full documentation — every config key, tag rules, adding a CRD source — lives at
+[sbordeyne.github.io/backstage-plugins/plugins/kubespec](https://sbordeyne.github.io/backstage-plugins/plugins/kubespec/).
+
+## Installation
+
+```bash
+yarn --cwd packages/backend add @sbordeyne/backstage-plugin-kubespec-backend
+```
+
+```ts
+// packages/backend/src/index.ts
+backend.add(import('@sbordeyne/backstage-plugin-kubespec-backend'));
+// Optional: indexes ingested kinds into the portal's global search.
+backend.add(import('@sbordeyne/backstage-plugin-kubespec-backend/alpha'));
+```
+
+Ingest reads tags and listings through `integrations.github`; there is no token
+key of its own, and a read-only token is enough for public repositories:
+
+```yaml
+integrations:
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
+```
+
+Then turn sync on and name what to ingest:
+
+```yaml
+kubespec:
+  sync:
+    enabled: true
+  kubernetes:
+    minors: ['v1.33', 'v1.34']
+  projects:
+    - slug: cert-manager
+      name: cert-manager
+      repo: cert-manager/cert-manager
+      releaseAsset: cert-manager.crds.yaml
+      tags: { regex: '^v\d+\.\d+\.\d+$', max: 5 }
+```
+
+Migrations run at startup against the database the backend hands the plugin, so
+there is nothing to run by hand. The first tick starts two minutes after boot and
+then runs daily; a cold ingest is bounded per tick and resumes on the next one, so
+the page fills progressively.
+
+The frontend, [`@sbordeyne/backstage-plugin-kubespec`](../kubespec/README.md), is
+what renders any of this.
 
 ## How it works
 
