@@ -2,6 +2,7 @@ title: Plugins
 nav:
   - gcp-catalog-provider.md
   - bruno.md
+  - kubespec.md
   - secure-share.md
   - integrated-repositories.md
   - tech-insights-jira.md

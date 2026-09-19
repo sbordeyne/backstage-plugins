@@ -10,6 +10,7 @@ repository except the shared packages a plugin pair uses between its own halves.
 | ------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------- |
 | [GCP catalog provider](plugins/gcp-catalog-provider.md)       | catalog backend module | Ingests 58 kinds of GCP resource, and the IAM edges between them, as a dependency graph |
 | [Bruno](plugins/bruno.md)                                     | frontend + backend     | Shows Bruno API test runs, synced from a GCS bucket, on the owning entity               |
+| [Kubespec](plugins/kubespec.md)                               | frontend + backend     | Browsable Kubernetes API and operator CRD schemas, ingested from GitHub                 |
 | [Secure Share](plugins/secure-share.md)                       | frontend + backend     | End-to-end encrypted, short-lived sharing of credentials, text and files                |
 | [Integrated repositories](plugins/integrated-repositories.md) | frontend               | Tracks how much of a GitHub organization the catalog actually covers                    |
 | [Tech Insights: Jira](plugins/tech-insights-jira.md)          | tech-insights module   | Per-component Jira health facts: bugs, blockers, tech debt, cycle time                  |
