@@ -19,3 +19,6 @@ site
 packages/app/public/gotemplate.wasm
 app-config.local.yaml
 *.sqlite
+
+# Local package tarballs from `yarn pack`
+.local-packages
