@@ -126,19 +126,35 @@ describe('KubespecSyncWorker', () => {
     expect((await store.listResources(latest.id)).map(resource => resource.kind)).toEqual(['Widget']);
   });
 
-  it('skips a version whose content hash is unchanged, without downloading it', async () => {
+  it('skips a stored version without listing or downloading it again', async () => {
     const github = fakeGithub({ tags: ['v1.0.0'] });
     const { worker } = await createWorker(github);
 
     await worker.syncOnce();
-    const afterFirst = github.calls.download;
+    const afterFirst = { ...github.calls };
 
     const second = await worker.syncOnce();
 
     expect(second).toMatchObject({ versionsSkippedUnchanged: 1, versionsIngested: 0 });
-    // The listing still happens — that is where the sha comes from — but nothing
-    // is fetched a second time.
-    expect(github.calls.download).toBe(afterFirst);
+    // Only the tag listing is repeated, since new tags come from it.
+    expect(github.calls).toEqual({ ...afterFirst, listTags: afterFirst.listTags + 1 });
+  });
+
+  it('lists and ingests only the new tag when upstream publishes one', async () => {
+    const github = fakeGithub({ tags: ['v1.0.0'] });
+    const { store, worker } = await createWorker(github);
+    await worker.syncOnce();
+
+    const newer = fakeGithub({ tags: ['v1.0.0', 'v1.1.0'] });
+    const second = new KubespecSyncWorker({
+      store,
+      github: newer,
+      logger: mockServices.logger.mock(),
+      config: config(),
+    });
+
+    expect(await second.syncOnce()).toMatchObject({ versionsSkippedUnchanged: 1, versionsIngested: 1 });
+    expect(newer.calls).toMatchObject({ collect: 1, download: 1 });
   });
 
   it('re-reads unchanged versions once a rebuild has been asked for', async () => {
@@ -146,7 +162,7 @@ describe('KubespecSyncWorker', () => {
     const { store, worker } = await createWorker(github);
     await worker.syncOnce();
 
-    // Without the flag this is skipped from its listing alone.
+    // Without the flag a stored version is skipped without being listed.
     expect(await worker.syncOnce()).toMatchObject({ versionsSkippedUnchanged: 1, versionsIngested: 0 });
 
     await store.requestForceResync();
@@ -156,7 +172,7 @@ describe('KubespecSyncWorker', () => {
     expect(await worker.syncOnce()).toMatchObject({ versionsSkippedUnchanged: 1, versionsIngested: 0 });
   });
 
-  it('re-ingests a version whose upstream content changed', async () => {
+  it('picks up a moved tag only on a force resync', async () => {
     const github = fakeGithub({ tags: ['v1.0.0'], shaByTag: { 'v1.0.0': 'sha-one' } });
     const { store, worker } = await createWorker(github);
     await worker.syncOnce();
@@ -173,6 +189,11 @@ describe('KubespecSyncWorker', () => {
       config: config(),
     });
 
+    // Tags are treated as immutable: not even listed again.
+    expect(await second.syncOnce()).toMatchObject({ versionsIngested: 0, versionsSkippedUnchanged: 1 });
+    expect(changed.calls.collect).toBe(0);
+
+    await store.requestForceResync();
     expect(await second.syncOnce()).toMatchObject({ versionsIngested: 1, versionsSkippedUnchanged: 0 });
 
     const latest = (await store.resolveVersion('widgets'))!;

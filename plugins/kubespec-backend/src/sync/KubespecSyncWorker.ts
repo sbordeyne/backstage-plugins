@@ -72,11 +72,8 @@ interface FetchedVersion {
 }
 
 /**
- * A version's inputs identified but not yet downloaded.
- *
- * The split is what makes a steady-state sync nearly free: the listing already
- * carries every blob's sha, so an unchanged version is recognised and skipped
- * without transferring a single file body.
+ * A version's inputs identified but not yet downloaded. The listing carries every blob's sha, so
+ * the content hash stored with a version is known before any file body is transferred.
  */
 interface ResolvedVersion {
   contentHash: string;
@@ -261,16 +258,18 @@ export class KubespecSyncWorker {
         continue;
       }
 
+      // Tags are immutable, so a version stored whole is never listed again: resolving it costs one
+      // REST request per directory, which across every stored version is most of a tick's quota.
+      // A force resync re-reads them all, e.g. after an upstream tag was moved.
       const existing = stored.get(planned.version);
+      if (!force && existing?.state === 'ready') {
+        stats.versionsSkippedUnchanged += 1;
+        continue;
+      }
       try {
         const resolved = await this.step(`resolve ${plan.slug} ${planned.version}`, abortSignal, () =>
           this.resolveVersion(plan, planned),
         );
-
-        if (!force && existing?.state === 'ready' && existing.contentHash === resolved.contentHash) {
-          stats.versionsSkippedUnchanged += 1;
-          continue;
-        }
 
         if (budget.remaining <= 0) {
           stats.versionsSkippedOverBudget += 1;

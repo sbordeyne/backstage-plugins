@@ -504,9 +504,12 @@ kubespec:
 `search.scope: all` costs roughly 1.6M rows and ~400MB in a shared portal database, and buys
 property search while browsing an older version. `latest` is ~170k rows.
 
-An unchanged version is recognised from its listing — GitHub returns every blob's sha, so a
-version's fingerprint is known before a byte is downloaded — and skipped. Steady-state ticks
-download nothing.
+Tags are treated as immutable: a stored version is neither listed nor downloaded again, so a
+steady-state tick costs one tag listing per source. A moved tag is picked up by a force resync.
+
+For public upstream repositories, set a `token` on the `integrations.github` entry: a GitHub App
+only covers the owners it is installed on, Backstage falls back to that token for the others, and
+without it those requests are anonymous, limited to 60 an hour.
 
 !!! warning "Keep `sync.schedule.timeout` above `maxTickDurationMinutes`"
 

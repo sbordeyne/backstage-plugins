@@ -296,8 +296,8 @@ export async function createRouter(options: RouterOptions): Promise<express.Rout
       throw new NotFoundError('Kubespec sync is disabled; set kubespec.sync.enabled to true to schedule it');
     }
 
-    // A force run re-reads every source, ignoring the content hashes that
-    // normally skip unchanged versions. The flag is stored rather than passed to
+    // A force run re-reads every version of every source, even the stored ones
+    // a normal tick skips as immutable. The flag is stored rather than passed to
     // the scheduler, which carries no parameters, and the worker clears it per
     // source so an interrupted rebuild resumes.
     const force = req.query.force === 'true';

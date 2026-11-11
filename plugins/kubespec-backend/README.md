@@ -62,12 +62,16 @@ what renders any of this.
 A scheduled worker runs `plan → resolve → fetch → normalize → index → diff →
 commit → prune` for each configured source.
 
-The listing GitHub returns already carries every blob's sha, so a version's
-fingerprint is known before anything is downloaded: an unchanged version is
-skipped without transferring a byte. File bodies come from
-`raw.githubusercontent.com`, which costs no REST quota — a measured full ingest of
-three sources and five versions took **9 API requests**, and the following tick
-took 16 and downloaded nothing.
+Tags are treated as immutable: a version already stored is neither listed nor
+downloaded again, so a steady-state tick costs one tag listing per source and
+only new tags are read. A moved tag is picked up by a force resync
+(`POST /v1/sync?force=true`). File bodies come from `raw.githubusercontent.com`,
+which costs no REST quota.
+
+The plugin reads GitHub with the `integrations.github` credentials. A GitHub App
+only covers the owners it is installed on, so for public upstream repositories
+set a `token` on the same integration entry: Backstage falls back to it, and
+without it those requests are anonymous, limited to 60 an hour.
 
 Each kind's schema is expanded once and stored gzipped. Those bytes are the wire
 bytes: `/v1/resource/schema` streams the stored buffer under
@@ -79,8 +83,8 @@ ref-preserving graph.
 
 A tick stops ingesting after `sync.maxTickDurationMinutes` (10 by default) and
 leaves the rest for the next one. Nothing is truncated by that: every version is
-committed on its own, and an unchanged one is recognised from its listing and
-skipped without being downloaded, so the next tick resumes where this one stopped.
+committed on its own, and a stored one is skipped without any request, so the
+next tick resumes where this one stopped.
 
 That exists because of how Backstage's scheduler holds a task. A worker claims a
 run ticket, nothing extends it while the run is in progress, and only the
