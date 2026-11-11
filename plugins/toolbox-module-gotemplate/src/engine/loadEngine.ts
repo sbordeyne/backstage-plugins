@@ -29,14 +29,17 @@ declare global {
  */
 let enginePromise: Promise<GoTemplateEngine> | undefined;
 
-async function instantiate(wasmUrl: string): Promise<GoTemplateEngine> {
+/** The `fetch` the engine is downloaded with; Backstage's `fetchApi.fetch` fits. */
+export type EngineFetch = (input: string) => Promise<Response>;
+
+async function instantiate(wasmUrl: string, fetchFn: EngineFetch): Promise<GoTemplateEngine> {
   const Go = GoRuntime as unknown as GoRuntimeConstructor | undefined;
   if (typeof Go !== 'function') {
     throw new Error('the Go runtime shim did not load; wasm_exec.js was likely dropped from the bundle');
   }
   const go = new Go();
 
-  const response = await fetch(wasmUrl);
+  const response = await fetchFn(wasmUrl);
   if (!response.ok) {
     throw new Error(`could not download the template engine from ${wasmUrl} (HTTP ${response.status})`);
   }
@@ -77,10 +80,13 @@ async function instantiate(wasmUrl: string): Promise<GoTemplateEngine> {
  * Downloads and starts the Go template engine, reusing the in-flight or
  * already-resolved instance on subsequent calls. A failed load is not cached,
  * so a retry after a network blip can succeed.
+ *
+ * Pass Backstage's `fetchApi.fetch` as `fetchFn` so a `wasmUrl` on the backend
+ * receives the user's token and can require sign-in.
  */
-export function loadEngine(wasmUrl: string): Promise<GoTemplateEngine> {
+export function loadEngine(wasmUrl: string, fetchFn: EngineFetch = input => fetch(input)): Promise<GoTemplateEngine> {
   if (!enginePromise) {
-    enginePromise = instantiate(wasmUrl).catch(error => {
+    enginePromise = instantiate(wasmUrl, fetchFn).catch(error => {
       enginePromise = undefined;
       throw error;
     });

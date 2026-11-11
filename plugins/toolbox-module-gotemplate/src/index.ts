@@ -12,6 +12,7 @@ export { gotemplateTool, default } from './alpha';
 export type {
   DataFormat,
   ErrorPhase,
+  EngineFetch,
   FunctionCatalog,
   FunctionSet,
   GoTemplateEngine,

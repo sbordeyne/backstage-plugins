@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { configApiRef, useApi } from '@backstage/core-plugin-api';
+import { configApiRef, fetchApiRef, useApi } from '@backstage/core-plugin-api';
 import { loadEngine } from './loadEngine';
 import type { GoTemplateEngine } from './types';
 
@@ -36,13 +36,15 @@ export interface EngineState {
 
 export function useGoTemplateEngine(): EngineState {
   const wasmUrl = useWasmUrl();
+  // Adds the user's token for backend URLs only, so a self-hosted engine can require sign-in.
+  const fetchApi = useApi(fetchApiRef);
   const [state, setState] = useState<EngineState>({ loading: true });
 
   useEffect(() => {
     let cancelled = false;
     setState({ loading: true });
 
-    loadEngine(wasmUrl).then(
+    loadEngine(wasmUrl, input => fetchApi.fetch(input)).then(
       engine => {
         if (!cancelled) setState({ engine, loading: false });
       },
@@ -54,7 +56,7 @@ export function useGoTemplateEngine(): EngineState {
     return () => {
       cancelled = true;
     };
-  }, [wasmUrl]);
+  }, [wasmUrl, fetchApi]);
 
   return state;
 }
