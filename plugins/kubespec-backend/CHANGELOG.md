@@ -1,5 +1,11 @@
 # @sbordeyne/backstage-plugin-kubespec-backend
 
+## 0.3.0
+
+### Minor Changes
+
+- 6dd05e5: Stored versions are no longer listed again on every sync: tags are treated as immutable, so a steady-state tick costs one tag listing per source. A force resync (`POST /v1/sync?force=true`) still re-reads every version.
+
 ## 0.2.0
 
 ### Minor Changes
