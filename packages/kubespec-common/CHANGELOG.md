@@ -1,5 +1,11 @@
 # @sbordeyne/kubespec-common
 
+## 0.2.1
+
+### Patch Changes
+
+- Published from the release workflow with npm trusted publishing and provenance. No code change.
+
 ## 0.2.0
 
 ### Minor Changes
